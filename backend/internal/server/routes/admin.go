@@ -58,6 +58,9 @@ func RegisterAdminRoutes(
 		// Codex 环境改写（时区/日期）
 		registerCodexEnvRewriteRoutes(admin, h)
 
+		// Codex 降智检测（modeltrace）
+		registerOpenAIModelTraceRoutes(admin, h)
+
 		// Gemini OAuth
 		registerGeminiOAuthRoutes(admin, h)
 
@@ -489,6 +492,20 @@ func registerCodexEnvRewriteRoutes(admin *gin.RouterGroup, h *handler.Handlers) 
 	{
 		er.GET("/config", h.Admin.CodexEnvRewrite.GetSettings)
 		er.PUT("/config", h.Admin.CodexEnvRewrite.UpdateSettings)
+	}
+}
+
+// registerOpenAIModelTraceRoutes Codex 降智检测（modeltrace）管理路由。
+func registerOpenAIModelTraceRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	mt := admin.Group("/openai/modeltrace")
+	{
+		mt.GET("/config", h.Admin.OpenAIModelTrace.GetSettings)
+		mt.PUT("/config", h.Admin.OpenAIModelTrace.UpdateSettings)
+		mt.GET("/status", h.Admin.OpenAIModelTrace.Status)
+		mt.POST("/run", h.Admin.OpenAIModelTrace.Run)
+		mt.GET("/results", h.Admin.OpenAIModelTrace.ListResults)
+		mt.GET("/samples", h.Admin.OpenAIModelTrace.ListSamples)
+		mt.DELETE("/samples", h.Admin.OpenAIModelTrace.DeleteSamples)
 	}
 }
 

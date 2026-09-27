@@ -37,6 +37,7 @@ import adminComplianceAPI from './compliance'
 import auditAPI from './audit'
 import pluginsAPI from './plugins'
 import ticketGrabAPI from './ticketGrab'
+import modelTraceAPI from './modelTrace'
 
 /**
  * Unified admin API object for convenient access
@@ -75,7 +76,8 @@ export const adminAPI = {
   compliance: adminComplianceAPI,
   audit: auditAPI,
   plugins: pluginsAPI,
-  ticketGrab: ticketGrabAPI
+  ticketGrab: ticketGrabAPI,
+  modelTrace: modelTraceAPI
 }
 
 export {
@@ -112,7 +114,8 @@ export {
   adminComplianceAPI,
   auditAPI,
   pluginsAPI,
-  ticketGrabAPI
+  ticketGrabAPI,
+  modelTraceAPI
 }
 
 export default adminAPI
@@ -130,6 +133,13 @@ export type {
   TicketGrabStats,
   ProxyTestSample
 } from './ticketGrab'
+export type {
+  ModelTraceSettings,
+  ModelTraceTask,
+  ModelTraceStatus,
+  ModelTraceResult,
+  ModelTraceSample
+} from './modelTrace'
 export type { ContentModerationConfig, ContentModerationLog, ModerationMode } from './riskControl'
 export type {
   PluginInstallation,

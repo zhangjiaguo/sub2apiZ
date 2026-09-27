@@ -45,6 +45,7 @@ type AdminHandlers struct {
 	AuditLog               *admin.AuditLogHandler
 	OpenAITicketGrab       *admin.OpenAITicketGrabHandler
 	CodexEnvRewrite        *admin.CodexEnvRewriteHandler
+	OpenAIModelTrace       *admin.OpenAIModelTraceHandler
 }
 
 // Handlers contains all HTTP handlers

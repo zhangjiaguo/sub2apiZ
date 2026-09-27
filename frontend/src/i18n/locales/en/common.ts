@@ -185,6 +185,7 @@ export default {
     plugins: 'Plugins',
     proxies: 'Proxies',
     ticketGrab: 'Codex Tickets',
+    modelTrace: 'Model Trace',
     redeemCodes: 'Redeem Codes',
     ops: 'Ops',
     promoCodes: 'Promo Codes',

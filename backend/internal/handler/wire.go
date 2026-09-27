@@ -49,6 +49,7 @@ func ProvideAdminHandlers(
 	auditLogHandler *admin.AuditLogHandler,
 	openAITicketGrabHandler *admin.OpenAITicketGrabHandler,
 	codexEnvRewriteHandler *admin.CodexEnvRewriteHandler,
+	openAIModelTraceHandler *admin.OpenAIModelTraceHandler,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	opencodeGoUsage *service.OpenCodeGoUsageService,
@@ -95,6 +96,7 @@ func ProvideAdminHandlers(
 		AuditLog:               auditLogHandler,
 		OpenAITicketGrab:       openAITicketGrabHandler,
 		CodexEnvRewrite:        codexEnvRewriteHandler,
+		OpenAIModelTrace:       openAIModelTraceHandler,
 	}
 }
 
@@ -299,6 +301,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewAuditLogHandler,
 	admin.NewOpenAITicketGrabHandler,
 	admin.NewCodexEnvRewriteHandler,
+	admin.NewOpenAIModelTraceHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

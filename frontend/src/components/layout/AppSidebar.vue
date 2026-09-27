@@ -481,6 +481,10 @@ const PluginIcon = {
   render: () => h(Icon, { name: 'cube' })
 }
 
+const BeakerIcon = {
+  render: () => h(Icon, { name: 'beaker' })
+}
+
 const BoltIcon = {
   render: () =>
     h(
@@ -812,6 +816,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
     { path: '/admin/ticket-grab', label: t('nav.ticketGrab'), icon: BoltIcon, hideInSimpleMode: true },
+    { path: '/admin/model-trace', label: t('nav.modelTrace'), icon: BeakerIcon, hideInSimpleMode: true },
     {
       path: '/admin/security-audit',
       label: t('nav.securityAudit'),

@@ -982,6 +982,7 @@ var ProviderSet = wire.NewSet(
 	NewChannelMonitorRequestTemplateService,
 	ProvideUserPlatformQuotaUsageFlusher,
 	ProvideOpenAITicketGrabService,
+	ProvideCodexModelTraceService,
 )
 
 // ProvideOpenAITicketGrabService 创建并启动打票调度服务。
@@ -999,6 +1000,21 @@ func ProvideOpenAITicketGrabService(
 	svc := NewOpenAITicketGrabService(repo, accountRepo, tokenProvider, settingRepo, profileResolver)
 	svc.Start()
 	return svc
+}
+
+// ProvideCodexModelTraceService 创建降智检测服务（无后台循环，任务手动触发）。
+func ProvideCodexModelTraceService(
+	repo CodexModelTraceRepository,
+	accountRepo AccountRepository,
+	tokenProvider *OpenAITokenProvider,
+	settingRepo SettingRepository,
+	profileService *TLSFingerprintProfileService,
+) *CodexModelTraceService {
+	var profileResolver func(*Account) *tlsfingerprint.Profile
+	if profileService != nil {
+		profileResolver = profileService.ResolveTLSProfile
+	}
+	return NewCodexModelTraceService(repo, accountRepo, tokenProvider, settingRepo, profileResolver)
 }
 
 // ProvideUserPlatformQuotaUsageFlusher 创建并启动 UserPlatformQuotaUsageFlusher。
