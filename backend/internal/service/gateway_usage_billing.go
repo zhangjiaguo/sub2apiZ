@@ -602,10 +602,53 @@ func (s *GatewayService) billingDeps() *billingDeps {
 	}
 }
 
+// warnLongContextUsage 对命中长上下文档位计费（单价上浮）的请求打 WARN 统计日志。
+// 计费档位按 totalContext = input + cache_creation + cache_read 判定（astra 阈值
+// 272K、其他模型 200K），命中后全部单价上浮；典型成因是客户端会话滚大后每轮
+// 重读巨型历史（如 Codex Desktop 长会话），日志按 session_id 即可定位到源头
+// 会话去做压缩。触发条件取「计费侧已判定上浮（LongContextBillingApplied）或
+// totalContext ≥ 272K」并集：前者覆盖 200K 档模型，后者兜底计费基线缺失的
+// 巨型请求。现网频率 ~100 笔/天（2026-09-27 实测），无需限频；统计走日志键
+// usage_long_context_billed，SQL 侧另有 usage_logs.long_context_billing_applied。
+func warnLongContextUsage(usageLog *UsageLog) {
+	if usageLog == nil {
+		return
+	}
+	totalContext := usageLog.InputTokens + usageLog.CacheCreationTokens + usageLog.CacheReadTokens
+	if !usageLog.LongContextBillingApplied && totalContext < longContextAlertMinTokens {
+		return
+	}
+	slog.Warn("usage_long_context_billed",
+		"user_id", usageLog.UserID,
+		"api_key_id", usageLog.APIKeyID,
+		"group_id", usageLog.GroupID,
+		"model", usageLog.Model,
+		"session_id", derefStr(usageLog.SessionID),
+		"request_id", usageLog.RequestID,
+		"reasoning_effort", derefStr(usageLog.ReasoningEffort),
+		"user_agent", derefStr(usageLog.UserAgent),
+		"input_tokens", usageLog.InputTokens,
+		"cache_read_tokens", usageLog.CacheReadTokens,
+		"cache_creation_tokens", usageLog.CacheCreationTokens,
+		"total_context", totalContext,
+		"output_tokens", usageLog.OutputTokens,
+		"actual_cost", usageLog.ActualCost,
+		"total_cost", usageLog.TotalCost,
+		"long_context_billing_applied", usageLog.LongContextBillingApplied,
+	)
+}
+
+// longContextAlertMinTokens 是告警兜底阈值（与 astra 长上下文档位阈值一致；
+// 200K 档模型靠 LongContextBillingApplied 标记覆盖）。
+const longContextAlertMinTokens = 272_000
+
 func writeUsageLogBestEffort(ctx context.Context, repo UsageLogRepository, usageLog *UsageLog, logKey string) {
 	if repo == nil || usageLog == nil {
 		return
 	}
+	// 两条 RecordUsage 路径（gateway / openai_gateway）的用量日志都在此落库，
+	// 收口在此打告警保证每请求恰好一次（与写库成败无关）。
+	warnLongContextUsage(usageLog)
 	usageCtx, cancel := detachedBillingContext(ctx)
 	defer cancel()
 
