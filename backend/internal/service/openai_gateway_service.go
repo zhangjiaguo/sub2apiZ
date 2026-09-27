@@ -464,6 +464,7 @@ type OpenAIGatewayService struct {
 	pluginManager         *PluginManager
 	tlsFPProfileService   *TLSFingerprintProfileService
 	ticketEgress          OpenAITicketEgressRouter
+	envRewriter           *CodexEnvRewriteService
 	deferredService       *DeferredService
 	openAITokenProvider   *OpenAITokenProvider
 	grokTokenProvider     *GrokTokenProvider

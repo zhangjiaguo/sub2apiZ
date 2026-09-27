@@ -48,6 +48,7 @@ func ProvideAdminHandlers(
 	complianceHandler *admin.ComplianceHandler,
 	auditLogHandler *admin.AuditLogHandler,
 	openAITicketGrabHandler *admin.OpenAITicketGrabHandler,
+	codexEnvRewriteHandler *admin.CodexEnvRewriteHandler,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	opencodeGoUsage *service.OpenCodeGoUsageService,
@@ -93,6 +94,7 @@ func ProvideAdminHandlers(
 		Compliance:             complianceHandler,
 		AuditLog:               auditLogHandler,
 		OpenAITicketGrab:       openAITicketGrabHandler,
+		CodexEnvRewrite:        codexEnvRewriteHandler,
 	}
 }
 
@@ -126,6 +128,7 @@ func ProvideOpenAIGatewayHandler(
 	pluginManager *service.PluginManager,
 	tlsFingerprintProfileService *service.TLSFingerprintProfileService,
 	openAITicketGrabService *service.OpenAITicketGrabService,
+	codexEnvRewriteService *service.CodexEnvRewriteService,
 	concurrencyService *service.ConcurrencyService,
 	billingCacheService *service.BillingCacheService,
 	apiKeyService *service.APIKeyService,
@@ -141,6 +144,8 @@ func ProvideOpenAIGatewayHandler(
 	gatewayService.SetTLSFingerprintProfileService(tlsFingerprintProfileService)
 	// 打票出口接入（灰度账号真实转发走「票据 + 固定出口」槽位）。
 	gatewayService.SetTicketEgressRouter(openAITicketGrabService)
+	// Codex 环境改写接入（出站 <environment_context> 时区/日期对齐出口，fail-open）。
+	gatewayService.SetCodexEnvRewriter(codexEnvRewriteService)
 	h := NewOpenAIGatewayHandler(gatewayService, concurrencyService, billingCacheService, apiKeyService,
 		usageRecordWorkerPool, errorPassthroughService, contentModerationService, opsService, cfg)
 	h.securityAuditCoordinator = coordinator
@@ -293,6 +298,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewComplianceHandler,
 	admin.NewAuditLogHandler,
 	admin.NewOpenAITicketGrabHandler,
+	admin.NewCodexEnvRewriteHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

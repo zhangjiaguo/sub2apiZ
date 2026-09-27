@@ -24,6 +24,12 @@ func (s *OpenAIGatewayService) SetTicketEgressRouter(router OpenAITicketEgressRo
 	s.ticketEgress = router
 }
 
+// SetCodexEnvRewriter 注入 Codex 环境改写服务：enabled 时在 doOpenAIUpstream
+// 收口改写出站 <environment_context> 的时区/日期（fail-open，见 codex_env_rewrite.go）。
+func (s *OpenAIGatewayService) SetCodexEnvRewriter(r *CodexEnvRewriteService) {
+	s.envRewriter = r
+}
+
 // openAITicketEgressOverride 返回打票出口覆盖地址（空串 = 不覆盖）。
 func (s *OpenAIGatewayService) openAITicketEgressOverride(ctx context.Context, account *Account) string {
 	if s == nil || s.ticketEgress == nil || account == nil {
@@ -63,6 +69,11 @@ const openAITicketEgress403Retries = 2
 //     用户请求直接取就绪连接（仍是一次性、独立出口），显著降低首字延迟；
 //     见 tlsfingerprint.WarmHTTPProxyDialerFor 与 httpUpstream 层实现。
 func (s *OpenAIGatewayService) doOpenAIUpstream(request *http.Request, proxyURL string, account *Account) (*http.Response, error) {
+	// 环境改写：Codex <environment_context> 时区/日期对齐账号出口（fail-open，
+	// 未启用/不命中时零开销原样返回）。
+	if s.envRewriter != nil {
+		request = s.envRewriter.RewriteRequest(request, account)
+	}
 	// 打票出口覆盖：HTTP 转发全家族（passthrough/messages/CC/count_tokens/
 	// forward/http_bridge 等）都汇聚到本方法，在此统一改写出站代理。
 	override := s.openAITicketEgressOverride(request.Context(), account)

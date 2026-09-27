@@ -55,6 +55,9 @@ func RegisterAdminRoutes(
 		// OpenAI 打票（turn-state 采集）
 		registerOpenAITicketGrabRoutes(admin, h)
 
+		// Codex 环境改写（时区/日期）
+		registerCodexEnvRewriteRoutes(admin, h)
+
 		// Gemini OAuth
 		registerGeminiOAuthRoutes(admin, h)
 
@@ -477,6 +480,15 @@ func registerOpenAITicketGrabRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 		tg.GET("/status", h.Admin.OpenAITicketGrab.Status)
 		tg.GET("/logs", h.Admin.OpenAITicketGrab.ListLogs)
 		tg.POST("/run", h.Admin.OpenAITicketGrab.RunNow)
+	}
+}
+
+// registerCodexEnvRewriteRoutes Codex 环境改写（<environment_context> 时区/日期）管理路由。
+func registerCodexEnvRewriteRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	er := admin.Group("/openai/codex-env-rewrite")
+	{
+		er.GET("/config", h.Admin.CodexEnvRewrite.GetSettings)
+		er.PUT("/config", h.Admin.CodexEnvRewrite.UpdateSettings)
 	}
 }
 
