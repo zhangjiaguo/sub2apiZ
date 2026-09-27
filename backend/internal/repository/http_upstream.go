@@ -272,7 +272,8 @@ func (s *httpUpstreamService) DoWithTLS(req *http.Request, proxyURL string, acco
 		return nil, err
 	}
 
-	entry, err := s.acquireClientWithTLS(proxyURL, accountID, accountConcurrency, profile, upstreamProfile, service.HTTPUpstreamWarmPool(req.Context()))
+	entry, err := s.acquireClientWithTLS(proxyURL, accountID, accountConcurrency, profile, upstreamProfile,
+		service.HTTPUpstreamWarmPool(req.Context()), service.HTTPUpstreamCodexWire(req.Context()))
 	if err != nil {
 		slog.Debug("tls_fingerprint_acquire_client_failed", "account_id", accountID, "error", err)
 		return nil, err
@@ -543,14 +544,17 @@ func isSupportedGrokCLIVersion(version string) bool {
 }
 
 // acquireClientWithTLS 获取或创建带 TLS 指纹的客户端
-func (s *httpUpstreamService) acquireClientWithTLS(proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile, upstreamProfile service.HTTPUpstreamProfile, warmPool bool) (*upstreamClientEntry, error) {
-	return s.getClientEntryWithTLS(proxyURL, accountID, accountConcurrency, profile, upstreamProfile, true, true, warmPool)
+func (s *httpUpstreamService) acquireClientWithTLS(proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile, upstreamProfile service.HTTPUpstreamProfile, warmPool bool, codexWire bool) (*upstreamClientEntry, error) {
+	return s.getClientEntryWithTLS(proxyURL, accountID, accountConcurrency, profile, upstreamProfile, true, true, warmPool, codexWire)
 }
 
 // getClientEntryWithTLS 获取或创建带 TLS 指纹的客户端条目
 // TLS 指纹客户端使用独立的缓存键，与普通客户端隔离；warmPool=true 时
-// 再加 ":warm" 后缀（预热池 transport 与普通 transport 缓存隔离）
-func (s *httpUpstreamService) getClientEntryWithTLS(proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile, upstreamProfile service.HTTPUpstreamProfile, markInFlight bool, enforceLimit bool, warmPool bool) (*upstreamClientEntry, error) {
+// 再加 ":warm" 后缀（预热池 transport 与普通 transport 缓存隔离）；
+// codexWire=true 时加 ":wire" 后缀并改用手工 H1 线写出器（小写固定序头，
+// 与 net/http Transport 的缓存隔离；两者同时置位时 wire 让位于 warm——
+// 打票出口覆盖路径刻意保持每请求新连接=新出口语义）。
+func (s *httpUpstreamService) getClientEntryWithTLS(proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile, upstreamProfile service.HTTPUpstreamProfile, markInFlight bool, enforceLimit bool, warmPool bool, codexWire bool) (*upstreamClientEntry, error) {
 	isolation := s.getIsolationMode()
 	proxyKey, parsedProxy, err := normalizeProxyURL(proxyURL)
 	if err != nil {
@@ -558,10 +562,16 @@ func (s *httpUpstreamService) getClientEntryWithTLS(proxyURL string, accountID i
 	}
 	settings := s.resolvePoolSettings(isolation, accountConcurrency)
 	settings = s.applyProfilePoolSettings(settings, upstreamProfile)
+	if warmPool {
+		codexWire = false
+	}
 	// TLS 指纹客户端使用独立的缓存键，加 "tls:" 前缀
 	cacheKey := "tls:" + buildCacheKey(isolation, proxyKey, accountID, upstreamProtocolModeDefault)
-	if warmPool {
+	switch {
+	case warmPool:
 		cacheKey += ":warm"
+	case codexWire:
+		cacheKey += ":wire"
 	}
 	poolKey := buildPoolKey(settings, upstreamProtocolModeDefault) + ":tls"
 
@@ -612,15 +622,21 @@ func (s *httpUpstreamService) getClientEntryWithTLS(proxyURL string, accountID i
 		}
 	}
 
-	// 创建带 TLS 指纹的 Transport
-	slog.Debug("tls_fingerprint_creating_new_client", "account_id", accountID, "cache_key", cacheKey, "proxy", proxyKey)
-	transport, err := buildUpstreamTransportWithTLSFingerprint(settings, parsedProxy, profile, warmPool)
+	// 创建带 TLS 指纹的 Transport；codexWire 时改用手工 H1 线写出器
+	// （小写固定序头 + keep-alive 池，TLS 层仍走同一指纹拨号器）
+	var roundTripper http.RoundTripper
+	slog.Debug("tls_fingerprint_creating_new_client", "account_id", accountID, "cache_key", cacheKey, "proxy", proxyKey, "codex_wire", codexWire)
+	if codexWire {
+		roundTripper, err = buildWireH1Transport(settings, parsedProxy, profile)
+	} else {
+		roundTripper, err = buildUpstreamTransportWithTLSFingerprint(settings, parsedProxy, profile, warmPool)
+	}
 	if err != nil {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("build TLS fingerprint transport: %w", err)
 	}
 
-	client := &http.Client{Transport: transport}
+	client := &http.Client{Transport: roundTripper}
 	if s.shouldValidateResolvedIP() {
 		client.CheckRedirect = s.redirectChecker
 	}
@@ -1497,6 +1513,45 @@ func buildUpstreamTransportWithTLSFingerprint(settings poolSettings, proxyURL *u
 	}
 
 	return transport, nil
+}
+
+// buildWireH1Transport 构建手工 HTTP/1.1 线写出器 transport（codexWire 模式）。
+// TLS 层与普通指纹 transport 完全一致（同一批 utls 拨号器），仅 HTTP 层换成
+// 逐字节写出：全小写头、codex 固定插入序、显式 content-length、无
+// accept-encoding、响应侧 keep-alive 池化复用。
+//
+// dialer 选择与 buildUpstreamTransportWithTLSFingerprint 对齐（直连/socks5/
+// http CONNECT）；https 代理与未知 scheme 无法走手工写出器（https 代理需先
+// 与代理本身完成 TLS，现有指纹拨号器只发明文 CONNECT preface），整体回落
+// 普通 net/http 指纹 transport——wire 真实性让位于可用性。预热池刻意不接：
+// wire 模式只用于非打票覆盖路径（覆盖路径仍走 warmPool 一致性语义）。
+func buildWireH1Transport(settings poolSettings, proxyURL *url.URL, profile *tlsfingerprint.Profile) (http.RoundTripper, error) {
+	var dial func(ctx context.Context, network, addr string) (net.Conn, error)
+	fallback := func() (http.RoundTripper, error) {
+		return buildUpstreamTransportWithTLSFingerprint(settings, proxyURL, profile, false)
+	}
+	if proxyURL == nil {
+		slog.Debug("tls_fingerprint_wire_h1_direct", "profile", profile.Name)
+		dial = tlsfingerprint.NewDialer(profile, nil).DialTLSContext
+	} else {
+		switch strings.ToLower(proxyURL.Scheme) {
+		case "socks5", "socks5h":
+			slog.Debug("tls_fingerprint_wire_h1_socks5", "proxy", proxyURL.Host)
+			dial = tlsfingerprint.NewSOCKS5ProxyDialer(profile, proxyURL).DialTLSContext
+		case "http":
+			slog.Debug("tls_fingerprint_wire_h1_http_connect", "proxy", proxyURL.Host)
+			dial = tlsfingerprint.NewHTTPProxyDialer(profile, proxyURL).DialTLSContext
+		default:
+			slog.Debug("tls_fingerprint_wire_h1_scheme_fallback", "scheme", proxyURL.Scheme)
+			return fallback()
+		}
+	}
+	return tlsfingerprint.NewWireH1Transport(dial, tlsfingerprint.WireH1Config{
+		HeaderOrder:           tlsfingerprint.CodexH1HeaderOrder,
+		MaxIdleConnsPerHost:   settings.maxIdleConnsPerHost,
+		IdleConnTimeout:       settings.idleConnTimeout,
+		ResponseHeaderTimeout: settings.responseHeaderTimeout,
+	}), nil
 }
 
 // trackedBody 带跟踪功能的响应体包装器

@@ -29,7 +29,7 @@ func lifecycleClient(t *testing.T, srv *httptest.Server, withTLS bool) (*httpUps
 	var entry *upstreamClientEntry
 	var err error
 	if withTLS {
-		entry, err = s.getClientEntryWithTLS("", 1, 1, profile, service.HTTPUpstreamProfileDefault, false, true, false)
+		entry, err = s.getClientEntryWithTLS("", 1, 1, profile, service.HTTPUpstreamProfileDefault, false, true, false, false)
 	} else {
 		entry, err = s.acquireClientWithProfile("", 1, 1, service.HTTPUpstreamProfileDefault)
 		if err == nil {

@@ -671,7 +671,7 @@ func (s *HTTPUpstreamSuite) TestOpenAIProfileTLSFingerprintDoesNotInheritGeneric
 		},
 	}
 	svc := s.newService()
-	entry, err := svc.getClientEntryWithTLS("", 1, 1, &tlsfingerprint.Profile{Name: "test"}, service.HTTPUpstreamProfileOpenAI, false, false, false)
+	entry, err := svc.getClientEntryWithTLS("", 1, 1, &tlsfingerprint.Profile{Name: "test"}, service.HTTPUpstreamProfileOpenAI, false, false, false, false)
 	require.NoError(s.T(), err)
 	transport, ok := entry.client.Transport.(*http.Transport)
 	require.True(s.T(), ok, "expected *http.Transport")
@@ -682,16 +682,16 @@ func (s *HTTPUpstreamSuite) TestOpenAIProfileTLSFingerprintDoesNotInheritGeneric
 // 自定义 DialTLSContext。
 func (s *HTTPUpstreamSuite) TestTLSFingerprintWarmPoolSeparateCacheEntry() {
 	svc := s.newService()
-	plain, err := svc.getClientEntryWithTLS("", 1, 1, &tlsfingerprint.Profile{Name: "warm-test"}, service.HTTPUpstreamProfileDefault, false, false, false)
+	plain, err := svc.getClientEntryWithTLS("", 1, 1, &tlsfingerprint.Profile{Name: "warm-test"}, service.HTTPUpstreamProfileDefault, false, false, false, false)
 	require.NoError(s.T(), err)
-	warm, err := svc.getClientEntryWithTLS("", 1, 1, &tlsfingerprint.Profile{Name: "warm-test"}, service.HTTPUpstreamProfileDefault, false, false, true)
+	warm, err := svc.getClientEntryWithTLS("", 1, 1, &tlsfingerprint.Profile{Name: "warm-test"}, service.HTTPUpstreamProfileDefault, false, false, true, false)
 	require.NoError(s.T(), err)
 	require.NotSame(s.T(), plain, warm, "warm 与非 warm 应是不同缓存条目")
 	// 再次获取应命中各自缓存条目。
-	warmAgain, err := svc.getClientEntryWithTLS("", 1, 1, &tlsfingerprint.Profile{Name: "warm-test"}, service.HTTPUpstreamProfileDefault, false, false, true)
+	warmAgain, err := svc.getClientEntryWithTLS("", 1, 1, &tlsfingerprint.Profile{Name: "warm-test"}, service.HTTPUpstreamProfileDefault, false, false, true, false)
 	require.NoError(s.T(), err)
 	require.Same(s.T(), warm, warmAgain)
-	plainAgain, err := svc.getClientEntryWithTLS("", 1, 1, &tlsfingerprint.Profile{Name: "warm-test"}, service.HTTPUpstreamProfileDefault, false, false, false)
+	plainAgain, err := svc.getClientEntryWithTLS("", 1, 1, &tlsfingerprint.Profile{Name: "warm-test"}, service.HTTPUpstreamProfileDefault, false, false, false, false)
 	require.NoError(s.T(), err)
 	require.Same(s.T(), plain, plainAgain)
 }

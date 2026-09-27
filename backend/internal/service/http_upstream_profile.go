@@ -89,3 +89,22 @@ func WithHTTPUpstreamWarmPool(ctx context.Context) context.Context {
 func HTTPUpstreamWarmPool(ctx context.Context) bool {
 	return ctx != nil && ctx.Value(httpUpstreamWarmPoolContextKey{}) == true
 }
+
+type httpUpstreamCodexWireContextKey struct{}
+
+// WithHTTPUpstreamCodexWire marks an upstream request to be sent through the
+// manual HTTP/1.1 wire writer (lowercase fixed-order headers, codex field-order
+// JSON body, no accept-encoding) instead of net/http's canonical-cased
+// alphabetical serialization — matching real codex CLI's hyper/reqwest wire
+// format end to end. Mutually exclusive with the warm pool flag (override-path
+// requests deliberately keep per-request-new-exit semantics).
+func WithHTTPUpstreamCodexWire(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, httpUpstreamCodexWireContextKey{}, true)
+}
+
+func HTTPUpstreamCodexWire(ctx context.Context) bool {
+	return ctx != nil && ctx.Value(httpUpstreamCodexWireContextKey{}) == true
+}

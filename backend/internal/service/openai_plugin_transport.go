@@ -108,6 +108,14 @@ func (s *OpenAIGatewayService) dispatchOpenAIUpstream(request *http.Request, pro
 	}
 	if s.tlsFPProfileService != nil {
 		if profile := s.tlsFPProfileService.ResolveTLSProfile(account); profile != nil {
+			// codexWire：内置 Codex 指纹的非打票覆盖出站改走手工 H1 线写
+			// 出器（小写固定序头 + codex 字段序 body，与真实 codex CLI 传输
+			// 层逐字节一致）。warmPool（打票出口覆盖）时刻意不用——覆盖路径
+			// 保持每请求新连接 = 新出口语义；保险丝 SUB2API_CODEX_WIRE=off。
+			if isBuiltInCodexTLSProfile(profile) && !codexWireDisabled() &&
+				!HTTPUpstreamWarmPool(request.Context()) {
+				request = prepareCodexWireRequest(request)
+			}
 			return s.httpUpstream.DoWithTLS(request, proxyURL, account.ID, account.Concurrency, profile)
 		}
 	}
