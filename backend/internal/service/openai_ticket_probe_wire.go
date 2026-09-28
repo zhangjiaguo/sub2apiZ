@@ -91,14 +91,16 @@ const openAITicketProbeInstructions = "You are Codex, based on GPT-5. You are ru
 // 必须手工拼字节：encoding/json 对 map 按字母序输出，与 codex（serde 结构体
 // 序）不一致。tools 为空时整体省略（与序列化层 skip 空向量的行为一致）。
 // prompt_cache_key 与 client_metadata 复用网关出站收敛的约定（session 维度）。
-func buildOpenAITicketProbeRequestBody(model string, ids *openAITicketProbeIdentity) []byte {
+// inputText 是用户消息文本：生产传 ModelTrace 数字挑战（一石二鸟：铸造票据
+// + 顺带产出降智检测样本），测试可传任意短文本。
+func buildOpenAITicketProbeRequestBody(model, inputText string, ids *openAITicketProbeIdentity) []byte {
 	var b bytes.Buffer
 	b.WriteString(`{"model":`)
 	writeJSONString(&b, model)
 	b.WriteString(`,"instructions":`)
 	writeJSONString(&b, openAITicketProbeInstructions)
 	b.WriteString(`,"input":[{"type":"message","role":"user","content":`)
-	writeJSONString(&b, "Reply with OK.")
+	writeJSONString(&b, inputText)
 	b.WriteString(`}],"tool_choice":"auto","parallel_tool_calls":false,` +
 		`"reasoning":{"effort":"low","summary":"auto"},"store":false,"stream":true,` +
 		`"include":["reasoning.encrypted_content"],"prompt_cache_key":`)

@@ -292,7 +292,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	codexEnvRewriteService := service.NewCodexEnvRewriteService(settingRepository)
 	codexEnvRewriteHandler := admin.NewCodexEnvRewriteHandler(codexEnvRewriteService)
 	openAIModelTraceRepository := repository.NewOpenAIModelTraceRepository(db)
-	codexModelTraceService := service.ProvideCodexModelTraceService(openAIModelTraceRepository, accountRepository, openAITokenProvider, settingRepository, tlsFingerprintProfileService)
+	codexModelTraceService := service.ProvideCodexModelTraceService(openAIModelTraceRepository, accountRepository, openAITokenProvider, settingRepository, tlsFingerprintProfileService, openAITicketGrabService)
 	openAIModelTraceHandler := admin.NewOpenAIModelTraceHandler(codexModelTraceService)
 	upstreamBillingProbeService := service.ProvideUpstreamBillingProbeService(accountRepository, accountTestService, settingService, leaderLockCache, db)
 	openCodeGoUsageService := service.ProvideOpenCodeGoUsageService(accountRepository, httpUpstream, settingService, leaderLockCache, db)

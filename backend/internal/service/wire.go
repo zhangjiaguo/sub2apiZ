@@ -1003,18 +1003,25 @@ func ProvideOpenAITicketGrabService(
 }
 
 // ProvideCodexModelTraceService 创建降智检测服务（无后台循环，任务手动触发）。
+// 顺带把自己注入打票服务：打票探测体是数字挑战，回答经
+// InsertTicketProbeSample 落成自建库样本（打票名单账号被动扩样）。
 func ProvideCodexModelTraceService(
 	repo CodexModelTraceRepository,
 	accountRepo AccountRepository,
 	tokenProvider *OpenAITokenProvider,
 	settingRepo SettingRepository,
 	profileService *TLSFingerprintProfileService,
+	ticketGrab *OpenAITicketGrabService,
 ) *CodexModelTraceService {
 	var profileResolver func(*Account) *tlsfingerprint.Profile
 	if profileService != nil {
 		profileResolver = profileService.ResolveTLSProfile
 	}
-	return NewCodexModelTraceService(repo, accountRepo, tokenProvider, settingRepo, profileResolver)
+	svc := NewCodexModelTraceService(repo, accountRepo, tokenProvider, settingRepo, profileResolver)
+	if ticketGrab != nil {
+		ticketGrab.SetModelTraceSampleSink(svc.InsertTicketProbeSample)
+	}
+	return svc
 }
 
 // ProvideUserPlatformQuotaUsageFlusher 创建并启动 UserPlatformQuotaUsageFlusher。

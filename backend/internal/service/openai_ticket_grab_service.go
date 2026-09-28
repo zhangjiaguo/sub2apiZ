@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/modeltrace"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 )
@@ -283,6 +284,14 @@ type OpenAITicketGrabService struct {
 	egress            map[int64]*openAITicketEgressManager
 	egressHTTPSWarnAt map[int64]time.Time
 
+	// modelTraceSampleSink 打票探测顺带采集降智样本的落库钩子（wire 注入
+	// CodexModelTraceService.InsertTicketProbeSample；nil = 不采集）。
+	modelTraceSampleSink func(ctx context.Context, sample *CodexModelTraceSample) error
+	// sampleMu / sampleLastAt 每账号采样限频（30s 一轮的探测节奏下防止样本
+	// 表被同账号刷爆；真实价值在跨小时积累分布）。
+	sampleMu     sync.Mutex
+	sampleLastAt map[int64]time.Time
+
 	stopCh   chan struct{}
 	stopOnce sync.Once
 	wg       sync.WaitGroup
@@ -306,8 +315,19 @@ func NewOpenAITicketGrabService(
 		runtimes:          make(map[int64]*openAITicketAccountRuntime),
 		egress:            make(map[int64]*openAITicketEgressManager),
 		egressHTTPSWarnAt: make(map[int64]time.Time),
+		sampleLastAt:      make(map[int64]time.Time),
 		stopCh:            make(chan struct{}),
 	}
+}
+
+// SetModelTraceSampleSink 注入降智样本落库钩子（wire 在构造后调用）。
+func (s *OpenAITicketGrabService) SetModelTraceSampleSink(sink func(ctx context.Context, sample *CodexModelTraceSample) error) {
+	if s == nil {
+		return
+	}
+	s.sampleMu.Lock()
+	s.modelTraceSampleSink = sink
+	s.sampleMu.Unlock()
 }
 
 // Start 启动调度循环。
@@ -657,8 +677,13 @@ func (s *OpenAITicketGrabService) probeCore(ctx context.Context, account *Accoun
 	// 探测体按 codex-rs ResponsesApiRequest 字段序手工构造（map 序列化会按
 	// 字母序重排且缺 reasoning/client_metadata 等真实字段）；身份头补齐到与
 	// 真实转发同构（installation/session/thread/window + turn metadata）。
+	// input 用 ModelTrace 数字挑战（上游模板）替代裸 "Reply with OK."：
+	// 票据在响应头不受 body 影响，同一请求顺带产出降智检测样本（打票名单
+	// 账号被动扩样，喂给自建指纹库）。代价：探测时长 ~1s → 10-25s（300 个
+	// 数字的生成时间），ProbeTimeoutSecs 应 ≥60。
 	identity := resolveOpenAITicketProbeIdentity(account)
-	body := buildOpenAITicketProbeRequestBody(settings.Model, identity)
+	challenge := modeltrace.GenerateRobustChallenges(1, modeltrace.CryptoRandIntn)[0]
+	body := buildOpenAITicketProbeRequestBody(settings.Model, challenge.Prompt, identity)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://chatgpt.com/backend-api/codex/responses", bytes.NewReader(body))
 	if err != nil {
 		outcome.result, outcome.detail = "request_error", err.Error()
@@ -740,7 +765,59 @@ func (s *OpenAITicketGrabService) probeCore(ctx context.Context, account *Accoun
 		"exit_ip", exitIP, "exit_colo", exitColo,
 		"state_len", len(state), "model", model,
 		"duration_ms", duration.Milliseconds())
+	// 顺带采集降智样本（限频 1 次/账号/小时；失败只记日志不影响打票）。
+	s.maybeRecordModelTraceSample(account.ID, settings.Model, challenge.ExpectedCount, data, int(duration.Milliseconds()))
 	return outcome, ticket, resp.StatusCode, meta
+}
+
+// openAITicketProbeSampleInterval 同账号降智样本最小采集间隔：探测 15s 一
+// 轮 tick，全部落库会刷爆样本表；样本对分布的贡献在小时级，1 次/小时足够
+// 被动积累（每账号每天 ~24 样本）。
+const openAITicketProbeSampleInterval = time.Hour
+
+// maybeRecordModelTraceSample 打票探测体（数字挑战）的回答落成降智样本：
+// SSE 全文 → 数字游程 → 有效阈值 → 每账号限频 → 落库。任何失败静默跳过
+// （探测的主产物是票据，样本只是顺带）。
+func (s *OpenAITicketGrabService) maybeRecordModelTraceSample(accountID int64, model string, expectedCount int, sseBody []byte, latencyMS int) {
+	if s == nil {
+		return
+	}
+	stream := parseModelTraceSSE(sseBody)
+	if !stream.Completed || stream.Failed != "" {
+		return
+	}
+	numbers := modeltrace.ParseNumbers(stream.Text)
+	if len(numbers) < modeltrace.ValidAnswerThreshold(expectedCount) {
+		return
+	}
+	s.sampleMu.Lock()
+	sink := s.modelTraceSampleSink
+	if sink == nil {
+		s.sampleMu.Unlock()
+		return
+	}
+	if last, ok := s.sampleLastAt[accountID]; ok && time.Since(last) < openAITicketProbeSampleInterval {
+		s.sampleMu.Unlock()
+		return
+	}
+	s.sampleLastAt[accountID] = time.Now()
+	s.sampleMu.Unlock()
+
+	// 探测 ctx 此刻可能临近超时，落库用独立短超时。
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := sink(ctx, &CodexModelTraceSample{
+		Model:         model,
+		AccountID:     accountID,
+		ExpectedCount: expectedCount,
+		Numbers:       numbers,
+		LatencyMS:     latencyMS,
+	}); err != nil {
+		slog.Warn("openai_ticket_grab probe sample insert failed", "account_id", accountID, "error", err)
+		return
+	}
+	slog.Info("openai_ticket_grab probe sample recorded",
+		"account_id", accountID, "model", model, "numbers", len(numbers), "expected", expectedCount)
 }
 
 // openAITicketGrabLogMeta 落库日志所需的探测上下文。

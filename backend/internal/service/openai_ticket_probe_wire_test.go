@@ -30,7 +30,7 @@ func TestBuildOpenAITicketProbeRequestBody_CodexFieldOrder(t *testing.T) {
 		windowID:       "33333333-3333-4333-8333-333333333333:0",
 		turnStartedAt:  1770000000000,
 	}
-	body := string(buildOpenAITicketProbeRequestBody("gpt-6-astra", ids))
+	body := string(buildOpenAITicketProbeRequestBody("gpt-6-astra", "Reply with OK.", ids))
 
 	order := []string{
 		`"model":`, `"instructions":`, `"input":`, `"tool_choice":`,
