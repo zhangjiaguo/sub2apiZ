@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 )
@@ -68,7 +69,38 @@ const openAITicketEgress403Retries = 2
 //   - 预热连接池标记：把 TCP→代理 CONNECT→TLS 握手挪到后台提前完成，
 //     用户请求直接取就绪连接（仍是一次性、独立出口），显著降低首字延迟；
 //     见 tlsfingerprint.WarmHTTPProxyDialerFor 与 httpUpstream 层实现。
+//
+// openAIAcceptLanguageNormalized 出站归一后的 Accept-Language 值：真实
+// codex CLI（reqwest）不发该头，发它的客户端（Codex Desktop/JS SDK 等）
+// 多为系统 locale——中文 locale（zh-CN 等）会把「中国区用户」标记带给
+// 上游风控。归一到浏览器最常见值，既保留头语义又抹掉地区信号。
+const openAIAcceptLanguageNormalized = "en-US,en;q=0.9"
+
+// normalizeOpenAIAcceptLanguage 归一出站 Accept-Language：客户端发了才改
+// （删除连字符/下划线等全部变体后置为固定值），没发不补——与真实 codex
+// CLI（无此头）的形态保持一致。所有 OpenAI 平台出站（doOpenAIUpstream
+// 收口）统一走这里。
+func normalizeOpenAIAcceptLanguage(req *http.Request) {
+	if req == nil {
+		return
+	}
+	present := false
+	for name := range req.Header {
+		switch strings.ToLower(name) {
+		case "accept-language", "accept_language":
+			delete(req.Header, name)
+			present = true
+		}
+	}
+	if present {
+		req.Header.Set("Accept-Language", openAIAcceptLanguageNormalized)
+	}
+}
+
 func (s *OpenAIGatewayService) doOpenAIUpstream(request *http.Request, proxyURL string, account *Account) (*http.Response, error) {
+	// Accept-Language 归一（客户端发了才改：中文 locale 是上游风控的地区
+	// 信号；真实 codex CLI 不发该头，未携带时不补）。
+	normalizeOpenAIAcceptLanguage(request)
 	// 环境改写：Codex <environment_context> 时区/日期对齐账号出口（fail-open，
 	// 未启用/不命中时零开销原样返回）。
 	if s.envRewriter != nil {
