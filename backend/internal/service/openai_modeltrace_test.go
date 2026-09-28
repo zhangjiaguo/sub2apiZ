@@ -558,12 +558,14 @@ func TestCodexModelTraceTaskBusy(t *testing.T) {
 	waitModelTraceTask(t, svc)
 }
 
-func TestCodexModelTraceDetectWithoutBank(t *testing.T) {
+// 稳健库未覆盖 + 自建库缺失 → 逐对记 no_bank（任务本身不再失败）。
+func TestCodexModelTraceDetectModelNotInAnyBank(t *testing.T) {
 	accounts := map[int64]*Account{
 		244: {ID: 244, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive},
 	}
-	svc, _ := mtNewService(t, accounts)
+	svc, repo := mtNewService(t, accounts)
 	settings := DefaultCodexModelTraceSettings()
+	settings.Models = []string{"mt-unknown"}
 	settings.AccountIDs = []int64{244}
 	_ = svc.UpdateSettings(context.Background(), settings)
 
@@ -571,8 +573,93 @@ func TestCodexModelTraceDetectWithoutBank(t *testing.T) {
 		t.Fatal(err)
 	}
 	task := waitModelTraceTask(t, svc)
-	if !strings.Contains(task.LastError, "指纹库") {
-		t.Fatalf("expected missing-bank error, got %q", task.LastError)
+	if task.LastError != "" {
+		t.Fatalf("unexpected task error: %q", task.LastError)
+	}
+	results, _ := repo.ListResults(context.Background(), task.ID, 0, 0)
+	if len(results) != 1 {
+		t.Fatalf("results=%d", len(results))
+	}
+	res := results[0]
+	if res.Verdict != "no_bank" || res.Match {
+		t.Fatalf("expected no_bank: %+v", res)
+	}
+	if !strings.Contains(res.Reasons, "稳健库") || !strings.Contains(res.Reasons, "自建库") {
+		t.Fatalf("reasons=%q", res.Reasons)
+	}
+}
+
+// mtRobustSample 从稳健库模型直方图抽 n 个数字（打散后截断，边际分布对齐）。
+func mtRobustSample(counts []int, n int, r *rand.Rand) []int {
+	pool := make([]int, 0, len(counts)*36)
+	for idx, c := range counts {
+		for j := 0; j < c; j++ {
+			pool = append(pool, idx+1)
+		}
+	}
+	r.Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
+	if len(pool) > n {
+		pool = pool[:n]
+	}
+	return pool
+}
+
+// 稳健库检测：默认模型走内嵌稳健库（上游模板挑战），直方图重构样本判回自己。
+func TestCodexModelTraceDetectRobustBank(t *testing.T) {
+	accounts := map[int64]*Account{
+		244: {ID: 244, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive},
+	}
+	svc, repo := mtNewService(t, accounts)
+
+	bank, err := modeltrace.EmbeddedRobustBank()
+	if err != nil {
+		t.Fatal(err)
+	}
+	counts, ok := bank.ModelCounts("gpt-6-astra")
+	if !ok {
+		t.Fatal("gpt-6-astra not in robust bank")
+	}
+	r := rand.New(rand.NewSource(7))
+	// 挑战应来自上游模板生成器（与稳健库采集环境对齐）。
+	seenPrompts := map[string]bool{}
+	svc.probeFn = func(ctx context.Context, account *Account, model string, challenge modeltrace.Challenge) codexModelTraceProbeOutcome {
+		seenPrompts[challenge.Prompt] = true
+		return codexModelTraceProbeOutcome{numbers: mtRobustSample(counts, challenge.ExpectedCount, r), expected: challenge.ExpectedCount, latencyMS: 90}
+	}
+
+	settings := DefaultCodexModelTraceSettings()
+	settings.Models = []string{"gpt-6-astra"}
+	settings.AccountIDs = []int64{244}
+	settings.DetectRepeats = 3
+	settings.RequestGapMS = 0
+	_ = svc.UpdateSettings(context.Background(), settings)
+
+	task, err := svc.RunDetect(context.Background(), CodexModelTraceRunRequest{Kind: "detect"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	final := waitModelTraceTask(t, svc)
+	if final.LastError != "" {
+		t.Fatalf("detect failed: %s", final.LastError)
+	}
+	results, _ := repo.ListResults(context.Background(), task.ID, 0, 0)
+	if len(results) != 1 {
+		t.Fatalf("results=%d", len(results))
+	}
+	res := results[0]
+	if res.Verdict != "gpt-6-astra" || !res.Match {
+		t.Fatalf("robust detect mismatch: %+v", res)
+	}
+	if res.ValidRuns != 3 || res.Probability < 0.6 {
+		t.Fatalf("weak robust verdict: %+v", res)
+	}
+	if !strings.Contains(res.Reasons, "库=robust") {
+		t.Fatalf("bank kind missing: %q", res.Reasons)
+	}
+	for prompt := range seenPrompts {
+		if !strings.Contains(prompt, "355") {
+			t.Fatalf("challenge prompt not upstream template: %q", prompt)
+		}
 	}
 }
 

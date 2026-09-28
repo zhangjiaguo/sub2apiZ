@@ -37,7 +37,10 @@ import (
 //     + 74 维顺序块质心/方差，LOO 交叉校准 softmax β，整库 JSON 原子落库。
 //   - 检测（detect）：对（账号, 模型）对发多次挑战，回答与库比对：
 //     hellinger + 顺序块标准化欧氏 z 融合 + softmax，verdict = 最贴近的
-//     库内模型；verdict ≠ 请求模型 = 疑似换模。
+//     库内模型；verdict ≠ 请求模型 = 疑似换模。检测默认用内嵌稳健库
+//     （上游 ModelTrace 16 模型 × 36 响应，CV 95-100%，挑战用上游模板
+//     生成器与其建库环境对齐）；稳健库未覆盖的模型回落自建库（自建
+//     模板），两者都没有的模型记 no_bank。
 //
 // 探测复用打票的 codex 线格式基建（openai_ticket_probe_wire.go）：会话身份、
 // 手工 H1 写出器、utls 指纹拨号。出口用账号自身静态代理（检测的是「我们的
@@ -562,20 +565,23 @@ func (s *CodexModelTraceService) executeBankBuild(ctx context.Context, taskID st
 }
 
 // executeDetect 检测：每（账号,模型）对多次探测 → 与库比对 → 逐对结论落库。
+// 库选择：内嵌稳健库优先（模型在库即用，挑战用上游模板）；否则回落自建库
+// （自建模板）；都没有则记 no_bank。
 func (s *CodexModelTraceService) executeDetect(ctx context.Context, taskID string, models []string, accounts []*Account, settings CodexModelTraceSettings) {
-	bankJSON, _, ok, err := s.repo.GetBank(ctx)
+	robust, err := modeltrace.EmbeddedRobustBank()
 	if err != nil {
-		s.finishTask(fmt.Sprintf("读取指纹库失败: %v", err))
+		s.finishTask(fmt.Sprintf("内嵌稳健指纹库解析失败: %v", err))
 		return
 	}
-	if !ok {
-		s.finishTask("指纹库未构建，请先运行建库任务")
-		return
-	}
-	bank, err := modeltrace.ParseBank([]byte(bankJSON))
-	if err != nil {
-		s.finishTask(fmt.Sprintf("指纹库解析失败: %v", err))
-		return
+	var selfBank *modeltrace.Bank
+	if s.repo != nil {
+		if bankJSON, _, ok, err := s.repo.GetBank(ctx); err == nil && ok {
+			if b, perr := modeltrace.ParseBank([]byte(bankJSON)); perr == nil {
+				selfBank = b
+			} else {
+				slog.Warn("codex_modeltrace 自建库解析失败（忽略）", "task", taskID, "error", perr)
+			}
+		}
 	}
 
 	type pairWork struct {
@@ -596,7 +602,7 @@ func (s *CodexModelTraceService) executeDetect(ctx context.Context, taskID strin
 		go func() {
 			defer wg.Done()
 			for p := range work {
-				s.detectPair(ctx, taskID, bank, p.account, p.model, settings)
+				s.detectPair(ctx, taskID, robust, selfBank, p.account, p.model, settings)
 				s.stepTask()
 				if settings.RequestGapMS > 0 {
 					select {
@@ -615,9 +621,44 @@ func (s *CodexModelTraceService) executeDetect(ctx context.Context, taskID strin
 	s.finishTask("")
 }
 
+// selfBankHasModel 自建库是否覆盖某模型。
+func selfBankHasModel(bank *modeltrace.Bank, model string) bool {
+	if bank == nil {
+		return false
+	}
+	for _, p := range bank.Profiles {
+		if p.Model == model {
+			return true
+		}
+	}
+	return false
+}
+
 // detectPair 单（账号,模型）对的检测。
-func (s *CodexModelTraceService) detectPair(ctx context.Context, taskID string, bank *modeltrace.Bank, account *Account, model string, settings CodexModelTraceSettings) {
-	challenges := modeltrace.GenerateChallenges(settings.DetectRepeats, modeltrace.CryptoRandIntn)
+func (s *CodexModelTraceService) detectPair(ctx context.Context, taskID string, robust *modeltrace.RobustBank, selfBank *modeltrace.Bank, account *Account, model string, settings CodexModelTraceSettings) {
+	useRobust := robust != nil && robust.HasModel(model)
+	bankKind := "robust"
+	if !useRobust {
+		if !selfBankHasModel(selfBank, model) {
+			if err := s.repo.InsertResult(ctx, &CodexModelTraceResult{
+				TaskID: taskID, Kind: "detect", AccountID: account.ID, Model: model,
+				Verdict: "no_bank", Match: false,
+				Reasons: "模型不在稳健库（16 模型）也不在自建库，无法判定",
+			}); err != nil {
+				slog.Warn("codex_modeltrace insert result failed", "account", account.ID, "model", model, "error", err)
+			}
+			return
+		}
+		bankKind = "self"
+	}
+	// 挑战生成器与库对齐：稳健库 = 上游模板（环境质心按其采集环境池化）；
+	// 自建库 = 自建模板。
+	var challenges []modeltrace.Challenge
+	if useRobust {
+		challenges = modeltrace.GenerateRobustChallenges(settings.DetectRepeats, modeltrace.CryptoRandIntn)
+	} else {
+		challenges = modeltrace.GenerateChallenges(settings.DetectRepeats, modeltrace.CryptoRandIntn)
+	}
 	answers := make([]modeltrace.Answer, 0, settings.DetectRepeats)
 	failures := 0
 	latSum, latN := 0, 0
@@ -647,7 +688,13 @@ func (s *CodexModelTraceService) detectPair(ctx context.Context, taskID string, 
 			}
 		}
 	}
-	verdict, err := bank.Analyze(answers)
+	var verdict *modeltrace.Verdict
+	var err error
+	if useRobust {
+		verdict, err = robust.Analyze(answers)
+	} else {
+		verdict, err = selfBank.Analyze(answers)
+	}
 	if err != nil {
 		slog.Warn("codex_modeltrace analyze failed", "account", account.ID, "model", model, "error", err)
 		verdict = &modeltrace.Verdict{Reasons: []string{err.Error()}}
@@ -655,6 +702,7 @@ func (s *CodexModelTraceService) detectPair(ctx context.Context, taskID string, 
 	if len(verdict.Reasons) > 0 {
 		reasons = append(reasons, verdict.Reasons...)
 	}
+	reasons = append(reasons, "库="+bankKind)
 	avg := 0
 	if latN > 0 {
 		avg = latSum / latN
@@ -927,6 +975,18 @@ func (s *CodexModelTraceService) Status(ctx context.Context) (map[string]any, er
 	if s.repo == nil {
 		return status, nil
 	}
+	// 内嵌稳健库（检测默认库）信息。
+	if robust, err := modeltrace.EmbeddedRobustBank(); err == nil {
+		status["robust_bank"] = map[string]any{
+			"built_at": robust.BuiltAt(),
+			"models":   robust.ModelIDs(),
+			"calibration": map[string]any{
+				"1": map[string]any{"beta": robust.CalibrationBeta(1), "cv_accuracy": robust.CVAccuracy(1)},
+				"2": map[string]any{"beta": robust.CalibrationBeta(2), "cv_accuracy": robust.CVAccuracy(2)},
+				"3": map[string]any{"beta": robust.CalibrationBeta(3), "cv_accuracy": robust.CVAccuracy(3)},
+			},
+		}
+	}
 	bankJSON, updatedAt, ok, err := s.repo.GetBank(ctx)
 	if err != nil {
 		return nil, err
@@ -959,6 +1019,15 @@ func (s *CodexModelTraceService) Status(ctx context.Context) (map[string]any, er
 	}
 	status["sample_counts"] = counts
 	return status, nil
+}
+
+// InsertTicketProbeSample 打票探测顺带采集的降智样本落库（打票服务经
+// SetModelTraceSampleSink 注入本方法；样本进自建库样本表，建库任务聚合）。
+func (s *CodexModelTraceService) InsertTicketProbeSample(ctx context.Context, sample *CodexModelTraceSample) error {
+	if s == nil || s.repo == nil || sample == nil {
+		return nil
+	}
+	return s.repo.InsertSample(ctx, sample)
 }
 
 // ListResults 查询结果。
