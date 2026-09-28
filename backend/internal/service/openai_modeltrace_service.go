@@ -331,13 +331,16 @@ func (s *CodexModelTraceService) resolveAccounts(ctx context.Context, accountIDs
 		return nil, errors.New("account_ids 为空，请先在配置里指定探测官号")
 	}
 	var out []*Account
+	skipped := make([]int64, 0)
 	for _, id := range accountIDs {
 		account, err := s.accountRepo.GetByID(ctx, id)
-		if err != nil {
-			return nil, fmt.Errorf("加载账号 %d: %w", id, err)
-		}
-		if account == nil {
-			return nil, fmt.Errorf("账号 %d 不存在", id)
+		// 已删除的账号是配置残留：跳过而不是卡死整个任务（打票侧同理）。
+		if err != nil || account == nil {
+			if !errors.Is(err, ErrAccountNotFound) {
+				return nil, fmt.Errorf("加载账号 %d: %w", id, err)
+			}
+			skipped = append(skipped, id)
+			continue
 		}
 		if account.Platform != PlatformOpenAI || account.Type != AccountTypeOAuth {
 			return nil, fmt.Errorf("账号 %d 不是 openai OAuth 官号", id)
@@ -346,6 +349,12 @@ func (s *CodexModelTraceService) resolveAccounts(ctx context.Context, accountIDs
 			return nil, fmt.Errorf("账号 %d 未激活", id)
 		}
 		out = append(out, account)
+	}
+	if len(out) == 0 {
+		return nil, errors.New("没有可用的探测账号（可能均已被删除），请先在配置里指定探测官号")
+	}
+	if len(skipped) > 0 {
+		slog.Info("codex_modeltrace 跳过已删除账号", "account_ids", skipped)
 	}
 	return out, nil
 }
