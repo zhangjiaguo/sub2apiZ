@@ -142,6 +142,7 @@
           </div>
           <div class="flex items-center gap-3">
             <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ticketGrab.selectedCount', { count: selectedAccountIds.size }) }}</span>
+            <span v-if="prunedCount > 0" class="text-xs text-amber-600 dark:text-amber-400">{{ t('admin.ticketGrab.prunedDeleted', { count: prunedCount }) }}</span>
             <div class="w-56">
               <Select v-model="groupFilter" :options="groupOptions" :placeholder="t('admin.ticketGrab.selectGroup')" />
             </div>
@@ -445,6 +446,21 @@ const attachAccountIds = ref(new Set<number>())
 // 转发出口单独圈定（forward_account_ids 三态：null=全部覆盖走后端默认，数组=仅圈定账号）
 const forwardEgressCustom = ref(false)
 const forwardAccountIds = ref(new Set<number>())
+// 已删除账号的剔除提示（个数），与后端 pruneMissingAccounts 呼应
+const prunedCount = ref(0)
+
+// 把三个选中集合裁剪到仍存在的账号：死 ID 留在集合里既无法在列表中反选，
+// 保存时也只会原样写回，造成「下方状态表与选中账号不一致」。
+function pruneStaleSelections() {
+  if (!accounts.value.length) return
+  const live = new Set(accounts.value.map((a) => a.id))
+  const filterSet = (s: Set<number>) => new Set([...s].filter((id) => live.has(id)))
+  const nextSelected = filterSet(selectedAccountIds.value)
+  attachAccountIds.value = filterSet(attachAccountIds.value)
+  forwardAccountIds.value = filterSet(forwardAccountIds.value)
+  prunedCount.value = selectedAccountIds.value.size - nextSelected.size
+  selectedAccountIds.value = nextSelected
+}
 
 // 状态
 const statuses = ref<TicketGrabAccountStatus[]>([])
@@ -528,6 +544,7 @@ async function loadConfig() {
     // forward_account_ids 为 null/缺键 = 未单独圈定（后端默认覆盖全部打票账号）
     forwardEgressCustom.value = form.forward_account_ids != null
     forwardAccountIds.value = new Set(form.forward_account_ids ?? [])
+    pruneStaleSelections()
   } catch (e) {
     appStore.showError(String((e as Error)?.message ?? e))
   }
@@ -579,6 +596,7 @@ async function loadGroupsAndAccounts() {
     ])
     groups.value = allGroups.filter((g) => g.platform === 'openai')
     accounts.value = accountPage.items ?? []
+    pruneStaleSelections()
   } catch (e) {
     appStore.showError(String((e as Error)?.message ?? e))
   } finally {

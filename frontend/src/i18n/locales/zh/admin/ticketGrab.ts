@@ -46,6 +46,7 @@ export default {
     selectGroup: '选择分组',
     allGroups: '全部分组',
     selectedCount: '已选 {count} 个账号',
+    prunedDeleted: '已自动剔除 {count} 个已删除账号',
 
     // 状态表
     status: '打票状态',

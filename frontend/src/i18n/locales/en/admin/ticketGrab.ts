@@ -46,6 +46,7 @@ export default {
     selectGroup: 'Select group',
     allGroups: 'All groups',
     selectedCount: '{count} selected',
+    prunedDeleted: 'Pruned {count} deleted account(s)',
 
     // Status table
     status: 'Status',

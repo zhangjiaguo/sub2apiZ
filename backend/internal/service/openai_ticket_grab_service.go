@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -372,8 +373,57 @@ func (s *OpenAITicketGrabService) GetSettings(ctx context.Context) OpenAITicketG
 	return s.loadSettings(ctx)
 }
 
+// pruneMissingAccounts 从三个名单里剔除已被删除的账号（保持子集不变量：
+// 打票 / 接入转发 / 转发出口一起剔），避免死 ID 永久留在配置里——
+// 它们在状态表里渲染成 #id missing、也无法在 UI 里反选掉。
+func (s *OpenAITicketGrabService) pruneMissingAccounts(ctx context.Context, settings *OpenAITicketGrabSettings) {
+	unique := map[int64]bool{}
+	for _, id := range settings.AccountIDs {
+		unique[id] = true
+	}
+	for _, id := range settings.AttachAccountIDs {
+		unique[id] = true
+	}
+	if settings.ForwardAccountIDs != nil {
+		for _, id := range settings.ForwardAccountIDs {
+			unique[id] = true
+		}
+	}
+	missing := make(map[int64]bool, len(unique))
+	for id := range unique {
+		account, err := s.accountRepo.GetByID(ctx, id)
+		if err != nil || account == nil {
+			missing[id] = true
+		}
+	}
+	if len(missing) == 0 {
+		return
+	}
+	keep := func(ids []int64) []int64 {
+		out := make([]int64, 0, len(ids))
+		for _, id := range ids {
+			if !missing[id] {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
+	removed := make([]int64, 0, len(missing))
+	for id := range missing {
+		removed = append(removed, id)
+	}
+	sort.Slice(removed, func(i, j int) bool { return removed[i] < removed[j] })
+	slog.Info("openai_ticket_grab pruned missing accounts", "account_ids", removed)
+	settings.AccountIDs = keep(settings.AccountIDs)
+	settings.AttachAccountIDs = keep(settings.AttachAccountIDs)
+	if settings.ForwardAccountIDs != nil {
+		settings.ForwardAccountIDs = keep(settings.ForwardAccountIDs)
+	}
+}
+
 // UpdateSettings 校验并保存配置。
 func (s *OpenAITicketGrabService) UpdateSettings(ctx context.Context, settings OpenAITicketGrabSettings) error {
+	s.pruneMissingAccounts(ctx, &settings)
 	if err := settings.Validate(); err != nil {
 		return err
 	}
@@ -978,12 +1028,13 @@ func (s *OpenAITicketGrabService) Status(ctx context.Context) ([]*OpenAITicketGr
 		stats = map[int64]*OpenAITicketGrabStats{}
 	}
 	for _, accountID := range settings.AccountIDs {
-		st := &OpenAITicketGrabAccountStatus{AccountID: accountID}
-		if account, err := s.accountRepo.GetByID(ctx, accountID); err == nil && account != nil {
-			st.AccountName, st.Status = account.Name, account.Status
-		} else {
-			st.AccountName, st.Status = fmt.Sprintf("#%d", accountID), "missing"
+		account, err := s.accountRepo.GetByID(ctx, accountID)
+		if err != nil || account == nil {
+			// 已删除的账号不渲染（配置由保存时 pruneMissingAccounts 自清洁）。
+			continue
 		}
+		st := &OpenAITicketGrabAccountStatus{AccountID: accountID}
+		st.AccountName, st.Status = account.Name, account.Status
 		if ticket, err := s.repo.GetTicket(ctx, accountID); err == nil && ticket != nil {
 			st.Ticket = ticket
 			remaining := int(time.Until(ticket.ExpiresAt).Seconds())

@@ -33,6 +33,10 @@ type UpdateOpenAITicketGrabSettingsRequest struct {
 	MaxProbesPerRound int     `json:"max_probes_per_round"`
 	AttachToForward   bool    `json:"attach_to_forward"`
 	AttachAccountIDs  []int64 `json:"attach_account_ids"`
+	// ForwardAccountIDs 转发出口覆盖名单，三态透传（缺省/null=nil 全部覆盖、
+	// []=全不覆盖、非空=仅名单内）。曾经漏掉该字段导致 UI 每次保存都把
+	// 已圈定的名单静默重置回「全 golon 转发」，此处必须与前端键名对齐。
+	ForwardAccountIDs []int64 `json:"forward_account_ids"`
 }
 
 // GetSettings 获取打票配置
@@ -63,6 +67,7 @@ func (h *OpenAITicketGrabHandler) UpdateSettings(c *gin.Context) {
 		MaxProbesPerRound: req.MaxProbesPerRound,
 		AttachToForward:   req.AttachToForward,
 		AttachAccountIDs:  req.AttachAccountIDs,
+		ForwardAccountIDs: req.ForwardAccountIDs,
 	}
 	if err := h.service.UpdateSettings(c.Request.Context(), settings); err != nil {
 		response.BadRequest(c, err.Error())
