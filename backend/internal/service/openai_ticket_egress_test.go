@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
@@ -354,6 +355,52 @@ func TestOpenAITicketGrabSettingsForwardValidate(t *testing.T) {
 		settings.AccountIDs = []int64{1, 2}
 		settings.ForwardAccountIDs = []int64{2}
 		require.NoError(t, settings.Validate())
+	})
+}
+
+// 三态名单必须扛得住「保存→落库→读回」的 JSON 往返：
+// 空数组曾因 omitempty 在序列化时被整键丢弃，读回成 nil（= 全部覆盖），
+// 导致 UI 每次保存都把「全不覆盖」静默改回「全 golon 转发」。
+func TestOpenAITicketGrabSettingsForwardMarshalRoundTrip(t *testing.T) {
+	base := func() OpenAITicketGrabSettings {
+		settings := DefaultOpenAITicketGrabSettings()
+		settings.Enabled = true
+		settings.ProxyURL = "http://u:p@proxy.example.com:10000"
+		settings.AccountIDs = []int64{1, 2}
+		return settings
+	}
+
+	t.Run("空数组往返后仍是空数组", func(t *testing.T) {
+		settings := base()
+		settings.ForwardAccountIDs = []int64{}
+		require.NoError(t, settings.Validate())
+		raw, err := json.Marshal(settings)
+		require.NoError(t, err)
+		assert.Contains(t, string(raw), `"forward_account_ids":[]`)
+
+		var back OpenAITicketGrabSettings
+		require.NoError(t, json.Unmarshal(raw, &back))
+		require.NotNil(t, back.ForwardAccountIDs)
+		assert.Empty(t, back.ForwardAccountIDs)
+	})
+
+	t.Run("nil 往返后仍是 nil", func(t *testing.T) {
+		settings := base()
+		require.NoError(t, settings.Validate())
+		raw, err := json.Marshal(settings)
+		require.NoError(t, err)
+		assert.Contains(t, string(raw), `"forward_account_ids":null`)
+
+		var back OpenAITicketGrabSettings
+		require.NoError(t, json.Unmarshal(raw, &back))
+		assert.Nil(t, back.ForwardAccountIDs)
+	})
+
+	t.Run("旧格式缺键读回 nil（向后兼容）", func(t *testing.T) {
+		legacy := []byte(`{"enabled":true,"proxy_url":"http://u:p@proxy.example.com:10000","account_ids":[1]}`)
+		var back OpenAITicketGrabSettings
+		require.NoError(t, json.Unmarshal(legacy, &back))
+		assert.Nil(t, back.ForwardAccountIDs)
 	})
 }
 

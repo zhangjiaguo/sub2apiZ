@@ -70,11 +70,13 @@ type OpenAITicketGrabSettings struct {
 	AttachToForward  bool    `json:"attach_to_forward"`
 	AttachAccountIDs []int64 `json:"attach_account_ids"`
 	// ForwardAccountIDs 转发出口覆盖名单（三态，必须是打票名单的子集）：
-	// 未配置（nil，JSON 缺键）= 打票名单全部账号的转发出站走打票代理
+	// 未配置（nil，JSON null 或缺键）= 打票名单全部账号的转发出站走打票代理
 	// （与历史版本行为一致）；空数组 = 不覆盖任何账号（转发回落各自
 	// 静态代理，打票探测仍走打票代理）；非空 = 仅名单内账号被覆盖。
 	// 打票探测路径不经此名单——它直接使用 ProxyURL，与转发出口解耦。
-	ForwardAccountIDs []int64 `json:"forward_account_ids,omitempty"`
+	// 注意：这里绝不能加 omitempty——空数组会被整键丢弃，落库后缺键
+	// 被读回成 nil（= 全部覆盖），「全不覆盖」就静默变成了「全 golon」。
+	ForwardAccountIDs []int64 `json:"forward_account_ids"`
 }
 
 // DefaultOpenAITicketGrabSettings 默认值基于 2026-09-23 实测：
