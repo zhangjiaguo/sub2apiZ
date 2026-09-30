@@ -77,6 +77,7 @@ const (
 var openaiAllowedHeaders = map[string]bool{
 	"accept-language":       true,
 	"content-type":          true,
+	"openai-beta":           true,
 	"user-agent":            true,
 	"originator":            true,
 	"session-id":            true,
