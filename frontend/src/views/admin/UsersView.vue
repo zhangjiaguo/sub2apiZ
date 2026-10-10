@@ -290,7 +290,7 @@
           @sort="handleSort"
           @update:selected-keys="handleSelectedKeysUpdate"
         >
-          <template #cell-email="{ value, row }">
+          <template #cell-email="{ value }">
             <div class="flex items-center gap-2">
               <div
                 class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30"
@@ -299,12 +299,7 @@
                   {{ value.charAt(0).toUpperCase() }}
                 </span>
               </div>
-              <a
-                class="cursor-pointer font-medium text-gray-900 transition-colors hover:text-primary-600 hover:underline dark:text-white dark:hover:text-primary-400"
-                @click.stop="router.push(`/admin/users/${row.id}`)"
-              >
-                {{ value }}
-              </a>
+              <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
             </div>
           </template>
 
@@ -798,7 +793,6 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -838,7 +832,6 @@ import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryM
 import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
 
 const appStore = useAppStore()
-const router = useRouter()
 
 // Generate dynamic attribute columns from enabled definitions
 const attributeColumns = computed<Column[]>(() =>
