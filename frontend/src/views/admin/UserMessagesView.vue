@@ -310,6 +310,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   getUserMessageLog,
@@ -335,6 +336,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { useAuthStore } from '@/stores'
 
 const { t } = useI18n()
+const route = useRoute()
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 
@@ -590,6 +592,11 @@ function shortEndpoint(value: string): string {
 }
 
 onMounted(() => {
+  // 支持从用户详情页跳转预设筛选（?user_id=）
+  const presetUser = String(route.query.user_id ?? '')
+  if (presetUser && /^\d+$/.test(presetUser)) {
+    filters.user_id = presetUser
+  }
   fetchLogs()
   if (isAdmin.value) {
     adminAPI.groups

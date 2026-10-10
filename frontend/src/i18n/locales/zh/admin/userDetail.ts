@@ -1,0 +1,47 @@
+export default {
+  userDetail: {
+    title: '用户详情',
+    description: '单个用户的管理页面：档案、余额调整、状态、用量与余额记录。',
+    adjustBalance: '调整余额',
+    disable: '禁用',
+    enable: '启用',
+    viewMessages: '查看他的消息',
+    statusActive: '正常',
+    lastActive: '最后活跃',
+    stats: {
+      balance: '余额',
+      frozen: '冻结余额',
+      recharged: '累计充值',
+      requests: '请求数',
+      tokens: 'tokens',
+      cost: '成本',
+    },
+    tabs: {
+      history: '余额记录',
+      usage: '用量统计',
+    },
+    history: {
+      time: '时间',
+      type: '类型',
+      value: '金额',
+      notes: '备注',
+      empty: '暂无记录',
+    },
+    period: {
+      day: '今日',
+      week: '本周',
+      month: '本月',
+    },
+    balance: {
+      operation: '操作',
+      amount: '金额 ($)',
+      notes: '备注',
+      notesPlaceholder: '调整原因（可选）',
+      add: '增加',
+      subtract: '减少',
+      set: '设为',
+      invalid: '金额无效',
+      failed: '调整失败',
+    },
+  },
+}

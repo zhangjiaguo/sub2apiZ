@@ -1,0 +1,47 @@
+export default {
+  userDetail: {
+    title: 'User Detail',
+    description: 'Management page for a single user: profile, balance, status, usage and history.',
+    adjustBalance: 'Adjust Balance',
+    disable: 'Disable',
+    enable: 'Enable',
+    viewMessages: 'View Messages',
+    statusActive: 'Active',
+    lastActive: 'Last active',
+    stats: {
+      balance: 'Balance',
+      frozen: 'Frozen',
+      recharged: 'Total Recharged',
+      requests: 'Requests',
+      tokens: 'Tokens',
+      cost: 'Cost',
+    },
+    tabs: {
+      history: 'Balance History',
+      usage: 'Usage',
+    },
+    history: {
+      time: 'Time',
+      type: 'Type',
+      value: 'Amount',
+      notes: 'Notes',
+      empty: 'No records',
+    },
+    period: {
+      day: 'Today',
+      week: 'This week',
+      month: 'This month',
+    },
+    balance: {
+      operation: 'Operation',
+      amount: 'Amount ($)',
+      notes: 'Notes',
+      notesPlaceholder: 'Reason (optional)',
+      add: 'Add',
+      subtract: 'Subtract',
+      set: 'Set',
+      invalid: 'Invalid amount',
+      failed: 'Failed to adjust',
+    },
+  },
+}
