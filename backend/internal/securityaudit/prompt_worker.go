@@ -201,16 +201,20 @@ func (r *Runner) processJob(ctx context.Context, workerID int, cfg ActiveConfig,
 		// 纯留存模式：未配置扫描端点时不再进入失败重试，合成 pass 结果直接
 		// 落库（full_prompt 完整保留），管理页即可明文查看全部进站消息。
 		// store_pass_events=false 时与扫描语义一致：正常消息不落库只记发现。
+		// 注意：insertEvent 的 jsonb 列有 typeof CHECK 约束，空切片/映射必须
+		// 显式置空值（nil 会序列化成 null 违反约束）。
 		if r.metrics != nil {
 			r.metrics.Observe(DecisionAllow, 0)
 		}
 		pass := &NormalizedResult{
 			Decision: EventPass, RiskLevel: RiskLow, Action: ActionAllow,
-			ScannerBackend: "record-only",
+			Categories: []string{}, MatchedScanners: []string{},
+			ScannerScores: map[string]float64{}, ScannerEvidence: map[string]string{},
+			ScannerBackend: "record-only", ChunkTotal: 1,
 		}
 		event, err := r.repo.Complete(ctx, job, pass, cfg.StorePassEvents)
 		if err != nil {
-			return err
+			return r.finishFailure(ctx, job, &GuardError{Code: "record_complete_failed", Retryable: true, Cause: err})
 		}
 		if deleteErr := r.payload.Delete(ctx, job.ID); deleteErr != nil {
 			LogWarn(EventProcessFailed, mergeLogFields(baseFields, map[string]any{"worker_id": workerID, "status": "payload_delete_deferred", "error_code": "payload_delete_failed"}))
