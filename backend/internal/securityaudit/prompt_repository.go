@@ -75,6 +75,9 @@ type JobRepository interface {
 	ReclaimStale(ctx context.Context, stagingBefore, processingBefore time.Time, limit int) (int64, error)
 	QueueStats(ctx context.Context) (QueueStats, error)
 	RecordBlocking(ctx context.Context, snapshot PromptSnapshot, configVersion int64, result *NormalizedResult, storePassEvents bool) (*Event, error)
+	// CleanupBefore 按保留期清理过期任务与事件（events 先删，jobs 后删并级联
+	// 清理其余子事件），返回各自删除行数。
+	CleanupBefore(ctx context.Context, cutoff time.Time) (jobsDeleted, eventsDeleted int64, err error)
 }
 
 type PostgreSQLRepository struct {
@@ -403,6 +406,33 @@ func jobColumns(alias string) string {
 		%[1]s.attempts,%[1]s.max_attempts,%[1]s.claim_version,%[1]s.next_attempt_at,
 		%[1]s.processing_started_at,%[1]s.processed_at,%[1]s.last_error_code,%[1]s.last_error_message,
 		%[1]s.created_at,%[1]s.updated_at`, alias)
+}
+
+// CleanupBefore 删除 created_at 早于 cutoff 的审计任务与事件（先删事件再删
+// 任务，任务的级联删除兜底残留子事件），返回各自删除行数。
+func (r *PostgreSQLRepository) CleanupBefore(ctx context.Context, cutoff time.Time) (int64, int64, error) {
+	if r == nil || r.db == nil {
+		return 0, 0, errors.New("prompt audit repository unavailable")
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	eventsResult, err := tx.ExecContext(ctx, `DELETE FROM prompt_audit_events WHERE created_at < $1`, cutoff)
+	if err != nil {
+		return 0, 0, err
+	}
+	eventsDeleted, _ := eventsResult.RowsAffected()
+	jobsResult, err := tx.ExecContext(ctx, `DELETE FROM prompt_audit_jobs WHERE created_at < $1`, cutoff)
+	if err != nil {
+		return 0, 0, err
+	}
+	jobsDeleted, _ := jobsResult.RowsAffected()
+	if err := tx.Commit(); err != nil {
+		return 0, 0, err
+	}
+	return jobsDeleted, eventsDeleted, nil
 }
 
 func normalizeStage(stage string) string {

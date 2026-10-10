@@ -3,6 +3,9 @@ package securityaudit
 import (
 	"context"
 	"errors"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -58,7 +61,57 @@ func (r *Runner) Start(ctx context.Context) error {
 	}
 	r.wg.Add(1)
 	go r.reclaimer(runCtx)
+	r.wg.Add(1)
+	go r.retentionLoop(runCtx)
 	return nil
+}
+
+// promptAuditRetentionDays 是审计任务/事件的保留期（天）。默认 7，可用环境
+// 变量 SUB2API_PROMPT_AUDIT_RETENTION_DAYS 覆盖（1..3650）。纯留存模式下
+// full_prompt 单条可达 64K 字符，没有保留期会让表无限膨胀。
+func promptAuditRetentionDays() int {
+	value := strings.TrimSpace(os.Getenv("SUB2API_PROMPT_AUDIT_RETENTION_DAYS"))
+	if value != "" {
+		if days, err := strconv.Atoi(value); err == nil && days >= 1 && days <= 3650 {
+			return days
+		}
+	}
+	return 7
+}
+
+// retentionLoop 每小时按保留期清理一次过期任务与事件。
+func (r *Runner) retentionLoop(ctx context.Context) {
+	defer r.wg.Done()
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			r.cleanupOnce(ctx)
+		}
+	}
+}
+
+func (r *Runner) cleanupOnce(ctx context.Context) {
+	if r == nil || r.repo == nil {
+		return
+	}
+	days := promptAuditRetentionDays()
+	cutoff := r.clock.Now().Add(-time.Duration(days) * 24 * time.Hour)
+	jobsDeleted, eventsDeleted, err := r.repo.CleanupBefore(ctx, cutoff)
+	if err != nil {
+		LogWarn(EventProcessFailed, map[string]any{
+			"status": "retention_cleanup_failed", "error_code": "cleanup_failed", "retention_days": days,
+		})
+		return
+	}
+	if jobsDeleted > 0 || eventsDeleted > 0 {
+		LogInfo("prompt_audit_retention_cleaned", map[string]any{
+			"deleted_jobs": jobsDeleted, "deleted_events": eventsDeleted, "retention_days": days,
+		})
+	}
 }
 
 func (r *Runner) Shutdown(ctx context.Context) error {
@@ -145,7 +198,29 @@ func (r *Runner) processJob(ctx context.Context, workerID int, cfg ActiveConfig,
 	job.Snapshot.FullPrompt = FullPromptFromScanText(scanText)
 	endpoints := cfg.EnabledEndpoints()
 	if len(endpoints) == 0 {
-		return r.finishFailure(ctx, job, &GuardError{Code: "no_enabled_endpoint", Retryable: true})
+		// 纯留存模式：未配置扫描端点时不再进入失败重试，合成 pass 结果直接
+		// 落库（full_prompt 完整保留），管理页即可明文查看全部进站消息。
+		// store_pass_events=false 时与扫描语义一致：正常消息不落库只记发现。
+		if r.metrics != nil {
+			r.metrics.Observe(DecisionAllow, 0)
+		}
+		pass := &NormalizedResult{
+			Decision: EventPass, RiskLevel: RiskLow, Action: ActionAllow,
+			ScannerBackend: "record-only",
+		}
+		event, err := r.repo.Complete(ctx, job, pass, cfg.StorePassEvents)
+		if err != nil {
+			return err
+		}
+		if deleteErr := r.payload.Delete(ctx, job.ID); deleteErr != nil {
+			LogWarn(EventProcessFailed, mergeLogFields(baseFields, map[string]any{"worker_id": workerID, "status": "payload_delete_deferred", "error_code": "payload_delete_failed"}))
+		}
+		LogInfo(EventProcessed, mergeLogFields(baseFields, map[string]any{
+			"worker_id": workerID, "event_id": eventID(event), "decision": string(EventPass),
+			"risk_level": string(RiskLow), "action": string(ActionAllow),
+			"guard_endpoint_id": "record-only", "latency_ms": 0, "status": "done",
+		}))
+		return nil
 	}
 	chunks := SplitRunes(scanText, minimumInputLimit(endpoints))
 	results := make([]*NormalizedResult, 0, len(chunks))

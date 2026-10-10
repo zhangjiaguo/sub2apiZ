@@ -179,6 +179,10 @@ func (r *fakeJobRepository) RecordBlocking(_ context.Context, snapshot PromptSna
 	return nil, r.recordBlockingErr
 }
 
+func (r *fakeJobRepository) CleanupBefore(context.Context, time.Time) (int64, int64, error) {
+	return 0, 0, nil
+}
+
 type fakePayloadStore struct {
 	mu sync.Mutex
 
@@ -592,4 +596,84 @@ func TestRequestCloneOwnsMutableInputs(t *testing.T) {
 	require.Equal(t, []byte("original"), req.Body)
 	require.Equal(t, int64(7), *req.GroupID)
 	require.False(t, reflect.ValueOf(req.Body).Pointer() == reflect.ValueOf(clone.Body).Pointer())
+}
+
+func TestWorkerRecordOnlyModeWithoutEndpoints(t *testing.T) {
+	// 纯留存模式：无扫描端点时不进失败重试，合成 pass 直接落库（store_pass_events=true）
+	// 并删除 payload；扫描器一次都不该被调用。
+	cfg := asyncConfig()
+	cfg.Endpoints = nil
+	cfg.StorePassEvents = true
+	repo := &fakeJobRepository{}
+	payload := &fakePayloadStore{values: map[int64]string{51: "明文消息内容"}}
+	scannerCalls := 0
+	scanner := PromptScannerFunc(func(context.Context, ActiveEndpoint, string, []string) (*NormalizedResult, error) {
+		scannerCalls++
+		return nil, errors.New("不应调用扫描器")
+	})
+	metrics := NewAtomicMetrics()
+	runner := NewRunner(&fakeConfigStore{cfg: cfg, active: true}, repo, payload, scanner, metrics)
+	runner.clock = fixedClock{now: time.Unix(300, 0).UTC()}
+	require.NoError(t, runner.processJob(context.Background(), 0, cfg, workerJob(1, 3)))
+	require.Equal(t, 0, scannerCalls)
+	require.NotNil(t, repo.completedResult)
+	require.Equal(t, EventPass, repo.completedResult.Decision)
+	require.Equal(t, ActionAllow, repo.completedResult.Action)
+	require.Equal(t, "record-only", repo.completedResult.ScannerBackend)
+	require.True(t, repo.completedStore)
+	require.Equal(t, []int64{51}, payload.deleted)
+	require.Equal(t, int64(1), metrics.Snapshot().Allowed)
+
+	// store_pass_events=false 时正常消息不落库（与扫描语义一致）。
+	cfgNoPass := cfg
+	cfgNoPass.StorePassEvents = false
+	repo2 := &fakeJobRepository{}
+	payload2 := &fakePayloadStore{values: map[int64]string{51: "x"}}
+	runner2 := NewRunner(&fakeConfigStore{cfg: cfgNoPass, active: true}, repo2, payload2, scanner, NewAtomicMetrics())
+	runner2.clock = fixedClock{now: time.Unix(300, 0).UTC()}
+	require.NoError(t, runner2.processJob(context.Background(), 0, cfgNoPass, workerJob(1, 3)))
+	require.True(t, repo2.completedStore == false)
+	require.Equal(t, []int64{51}, payload2.deleted)
+}
+
+func TestEnqueuerAllowsNoEndpointsInAsyncMode(t *testing.T) {
+	// 无端点也能入队（record-only 由 worker 兜底），不再走 dropped 路径。
+	trace := []string{}
+	repo := &fakeJobRepository{trace: &trace}
+	payload := &fakePayloadStore{trace: &trace, values: map[int64]string{}}
+	cfg := asyncConfig()
+	cfg.Endpoints = nil
+	enqueuer := NewEnqueuer(&fakeConfigStore{cfg: cfg, active: true}, repo, payload)
+	require.NoError(t, enqueuer.Enqueue(context.Background(), asyncRequest()))
+	require.Equal(t, []string{"create_staging", "payload_set", "publish_queued"}, trace)
+}
+
+func TestPromptAuditRetentionDays(t *testing.T) {
+	require.Equal(t, 7, promptAuditRetentionDays())
+	t.Setenv("SUB2API_PROMPT_AUDIT_RETENTION_DAYS", "14")
+	require.Equal(t, 14, promptAuditRetentionDays())
+	t.Setenv("SUB2API_PROMPT_AUDIT_RETENTION_DAYS", "0")
+	require.Equal(t, 7, promptAuditRetentionDays())
+	t.Setenv("SUB2API_PROMPT_AUDIT_RETENTION_DAYS", "abc")
+	require.Equal(t, 7, promptAuditRetentionDays())
+}
+
+func TestRunnerCleanupOnce(t *testing.T) {
+	repo := &fakeCleanupRepo{}
+	runner := NewRunner(&fakeConfigStore{cfg: asyncConfig(), active: true}, repo, &fakePayloadStore{values: map[int64]string{}}, PromptScannerFunc(func(context.Context, ActiveEndpoint, string, []string) (*NormalizedResult, error) {
+		return nil, nil
+	}), NewAtomicMetrics())
+	runner.clock = fixedClock{now: time.Unix(100000, 0).UTC()}
+	runner.cleanupOnce(context.Background())
+	require.Equal(t, time.Unix(100000, 0).UTC().Add(-7*24*time.Hour), repo.cutoff)
+}
+
+type fakeCleanupRepo struct {
+	fakeJobRepository
+	cutoff time.Time
+}
+
+func (f *fakeCleanupRepo) CleanupBefore(_ context.Context, cutoff time.Time) (int64, int64, error) {
+	f.cutoff = cutoff
+	return 3, 5, nil
 }
