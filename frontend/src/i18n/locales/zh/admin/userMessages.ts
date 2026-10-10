@@ -2,6 +2,10 @@ export default {
   userMessages: {
     title: '用户消息',
     description: '全部进站消息的明文留存（请求侧，保留 7 天）。覆盖 /v1/messages、/v1/responses、/v1/chat/completions 及 WebSocket 回合；正文截断到 64K 字符。',
+    tabs: {
+      messages: '用户消息',
+      usage: '用户用量',
+    },
     empty: '暂无消息',
     loadFailed: '加载用户消息失败',
     detailFailed: '加载消息详情失败',
@@ -35,6 +39,7 @@ export default {
       output: '输出 tokens',
       cache: '缓存读',
       cost: '成本$',
+      pickFirst: '请先选择分组',
       empty: '该分组近段时间没有用量',
     },
     detail: {

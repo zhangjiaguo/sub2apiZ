@@ -1,9 +1,27 @@
 <template>
   <AppLayout>
     <TablePageLayout>
+      <!-- Tab 切换：用户消息 / 用户用量 -->
+      <template #actions>
+        <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800">
+          <button
+            v-for="tab in tabs"
+            :key="tab.key"
+            type="button"
+            class="rounded-md px-4 py-1.5 text-sm font-medium transition-colors"
+            :class="activeTab === tab.key
+              ? 'bg-white text-primary-600 shadow-sm dark:bg-gray-900 dark:text-primary-400'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+            @click="switchTab(tab.key)"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+      </template>
+
       <!-- Filters -->
       <template #filters>
-        <div class="card p-4 sm:p-6">
+        <div v-if="activeTab === 'messages'" class="card p-4 sm:p-6">
           <div class="flex flex-1 flex-wrap items-end gap-4">
             <div class="w-full sm:w-auto sm:min-w-[220px]">
               <label class="input-label">{{ t('admin.userMessages.filters.q') }}</label>
@@ -67,20 +85,26 @@
 
       <!-- Table -->
       <template #table>
-        <!-- 分组用量排行（选定分组或查看者单组时展示） -->
-        <div v-if="activeRankGroup" class="card mb-4 p-4 sm:p-6">
+        <!-- 用量排行（tab=usage） -->
+        <div v-if="activeTab === 'usage'" class="card p-4 sm:p-6">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-              {{ t('admin.userMessages.ranking.title') }} · {{ activeRankGroupName }}
+              {{ activeRankGroupName }}
             </h3>
             <div class="flex items-center gap-2">
+              <div class="w-48">
+                <Select v-model="filters.group_id" :options="groupOptions" @change="fetchRanking" />
+              </div>
               <span class="text-xs text-gray-400">{{ t('admin.userMessages.ranking.days') }}</span>
-              <div class="w-28">
+              <div class="w-24">
                 <Select v-model="rankDays" :options="daysOptions" @change="fetchRanking" />
               </div>
             </div>
           </div>
-          <div class="overflow-x-auto">
+          <div v-if="!rankAvailable" class="py-10 text-center text-sm text-gray-400">
+            {{ t('admin.userMessages.ranking.pickFirst') }}
+          </div>
+          <div v-else class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b border-gray-200 text-left text-xs text-gray-400 dark:border-gray-700">
@@ -97,7 +121,8 @@
                 <tr
                   v-for="(row, i) in ranking"
                   :key="row.user_id"
-                  class="border-b border-gray-100 last:border-0 dark:border-gray-800"
+                  class="cursor-pointer border-b border-gray-100 transition-colors last:border-0 hover:bg-primary-50/50 dark:border-gray-800 dark:hover:bg-primary-900/10"
+                  @click="drillUser(row.user_id)"
                 >
                   <td class="py-2 pr-3 font-mono text-xs text-gray-400">{{ i + 1 }}</td>
                   <td class="py-2 pr-3">
@@ -118,7 +143,7 @@
           </div>
         </div>
 
-        <div class="card p-4 sm:p-6">
+        <div v-if="activeTab === 'messages'" class="card p-4 sm:p-6">
           <DataTable :columns="columns" :data="logs" :loading="loading" row-key="id">
             <template #cell-created_at="{ value }">
               <span class="whitespace-nowrap font-mono text-xs text-gray-600 dark:text-gray-300">
@@ -187,15 +212,19 @@
             {{ t('admin.userMessages.empty') }}
           </div>
 
-          <Pagination
-            v-if="total > 0"
-            :total="total"
-            :page="page"
-            :page-size="pageSize"
-            @update:page="onPageChange"
-            @update:pageSize="onPageSizeChange"
-          />
         </div>
+      </template>
+
+      <!-- Pagination（专用插槽，消息 tab） -->
+      <template #pagination>
+        <Pagination
+          v-if="activeTab === 'messages' && total > 0"
+          :total="total"
+          :page="page"
+          :page-size="pageSize"
+          @update:page="onPageChange"
+          @update:pageSize="onPageSizeChange"
+        />
       </template>
     </TablePageLayout>
 
@@ -329,6 +358,12 @@ const groupOptions = computed(() => [
 ])
 const grantGroupOptions = computed(() => groups.value.map((g) => ({ value: String(g.id), label: `${g.name} (#${g.id})` })))
 
+const activeTab = ref<'messages' | 'usage'>('messages')
+const tabs = computed(() => [
+  { key: 'messages' as const, label: t('admin.userMessages.tabs.messages') },
+  { key: 'usage' as const, label: t('admin.userMessages.tabs.usage') },
+])
+
 const ranking = ref<GroupUsageRankingRow[]>([])
 const rankDays = ref('7')
 const daysOptions = [
@@ -363,6 +398,7 @@ const activeRankGroup = computed(() => {
   if (!isAdmin.value && groups.value.length === 1) return groups.value[0].id
   return null
 })
+const rankAvailable = computed(() => activeRankGroup.value !== null)
 const activeRankGroupName = computed(() => {
   const g = groups.value.find((x) => String(x.id) === String(activeRankGroup.value))
   return g ? `${g.name} (#${g.id})` : `#${activeRankGroup.value}`
@@ -418,7 +454,19 @@ async function fetchLogs() {
 function search() {
   page.value = 1
   fetchLogs()
-  fetchRanking()
+}
+
+function switchTab(tab: 'messages' | 'usage') {
+  activeTab.value = tab
+  if (tab === 'usage') fetchRanking()
+}
+
+// 从排行钻取：跳到消息 tab 并锁定该用户+当前分组
+function drillUser(userId: number) {
+  filters.user_id = String(userId)
+  page.value = 1
+  activeTab.value = 'messages'
+  fetchLogs()
 }
 
 function reset() {

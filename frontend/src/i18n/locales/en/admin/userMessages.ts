@@ -2,6 +2,10 @@ export default {
   userMessages: {
     title: 'User Messages',
     description: 'Plaintext retention of all inbound messages (request side, 7-day retention). Covers /v1/messages, /v1/responses, /v1/chat/completions and WebSocket turns; content capped at 64K chars.',
+    tabs: {
+      messages: 'User Messages',
+      usage: 'User Usage',
+    },
     empty: 'No messages',
     loadFailed: 'Failed to load user messages',
     detailFailed: 'Failed to load message detail',
@@ -35,6 +39,7 @@ export default {
       output: 'Output tokens',
       cache: 'Cache read',
       cost: 'Cost $',
+      pickFirst: 'Select a group first',
       empty: 'No usage in this group recently',
     },
     detail: {
