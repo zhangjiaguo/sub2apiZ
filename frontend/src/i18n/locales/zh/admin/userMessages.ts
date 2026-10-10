@@ -1,0 +1,36 @@
+export default {
+  userMessages: {
+    title: '用户消息',
+    description: '全部进站消息的明文留存（请求侧，保留 7 天）。覆盖 /v1/messages、/v1/responses、/v1/chat/completions 及 WebSocket 回合；正文截断到 64K 字符。',
+    empty: '暂无消息',
+    loadFailed: '加载用户消息失败',
+    detailFailed: '加载消息详情失败',
+    filters: {
+      q: '内容搜索',
+      qPlaceholder: '消息正文关键字',
+      userId: '用户 ID',
+      model: '模型',
+      groupId: '分组 ID',
+      search: '搜索',
+      reset: '重置',
+    },
+    columns: {
+      time: '时间',
+      user: '用户',
+      model: '模型',
+      endpoint: '入口',
+      content: '消息预览',
+      size: '长度',
+      detail: '全文',
+    },
+    detail: {
+      title: '消息全文',
+      meta: '请求信息',
+      content: '正文',
+      copy: '复制全文',
+      copied: '已复制',
+      truncated: '已截断（原始 {n} 字符）',
+      requestId: '请求 ID',
+    },
+  },
+}

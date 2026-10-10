@@ -69,6 +69,8 @@ func runSecurityAudit(c *gin.Context, reqLog *zap.Logger, coordinator *securitya
 	if c == nil || c.Request == nil {
 		return nil
 	}
+	// 进站消息明文留存（独立于审核/审计管道，best-effort 不参与任何判定）。
+	recordUserMessage(c, apiKey, subject, protocol, model, body, stage)
 	cacheCompletion := cachesSecurityAuditCompletion(stage)
 	if cacheCompletion {
 		if completed, exists := c.Get(securityAuditCompletedContextKey); exists && completed == true {

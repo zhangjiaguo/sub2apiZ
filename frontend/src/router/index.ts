@@ -635,6 +635,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/user-messages',
+    name: 'AdminUserMessages',
+    component: () => import('@/views/admin/UserMessagesView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'User Messages',
+      titleKey: 'admin.userMessages.title',
+      descriptionKey: 'admin.userMessages.description'
+    }
+  },
+  {
     path: '/admin/prompt-audit',
     name: 'AdminPromptAudit',
     component: () => import('@/features/prompt-audit/PromptAuditView.vue'),

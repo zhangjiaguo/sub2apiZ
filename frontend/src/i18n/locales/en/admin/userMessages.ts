@@ -1,0 +1,36 @@
+export default {
+  userMessages: {
+    title: 'User Messages',
+    description: 'Plaintext retention of all inbound messages (request side, 7-day retention). Covers /v1/messages, /v1/responses, /v1/chat/completions and WebSocket turns; content capped at 64K chars.',
+    empty: 'No messages',
+    loadFailed: 'Failed to load user messages',
+    detailFailed: 'Failed to load message detail',
+    filters: {
+      q: 'Content search',
+      qPlaceholder: 'Keyword in message content',
+      userId: 'User ID',
+      model: 'Model',
+      groupId: 'Group ID',
+      search: 'Search',
+      reset: 'Reset',
+    },
+    columns: {
+      time: 'Time',
+      user: 'User',
+      model: 'Model',
+      endpoint: 'Endpoint',
+      content: 'Preview',
+      size: 'Length',
+      detail: 'Full text',
+    },
+    detail: {
+      title: 'Full message',
+      meta: 'Request info',
+      content: 'Content',
+      copy: 'Copy full text',
+      copied: 'Copied',
+      truncated: 'Truncated (original {n} chars)',
+      requestId: 'Request ID',
+    },
+  },
+}

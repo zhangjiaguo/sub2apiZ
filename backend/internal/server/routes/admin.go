@@ -139,6 +139,7 @@ func RegisterAdminRoutes(
 
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
+		registerUserMessageLogRoutes(admin, h)
 	}
 }
 
@@ -941,5 +942,16 @@ func channelMonitorModeV2Guard(settingService *service.SettingService) gin.Handl
 			return
 		}
 		c.Next()
+	}
+}
+
+func registerUserMessageLogRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	if h == nil || h.Admin == nil || h.Admin.UserMessageLog == nil {
+		return
+	}
+	messageLogs := admin.Group("/user-message-logs")
+	{
+		messageLogs.GET("", h.Admin.UserMessageLog.List)
+		messageLogs.GET("/:id", h.Admin.UserMessageLog.Get)
 	}
 }

@@ -38,6 +38,7 @@ import auditAPI from './audit'
 import pluginsAPI from './plugins'
 import ticketGrabAPI from './ticketGrab'
 import modelTraceAPI from './modelTrace'
+import userMessageLogAPI from './userMessageLogs'
 
 /**
  * Unified admin API object for convenient access
@@ -77,7 +78,8 @@ export const adminAPI = {
   audit: auditAPI,
   plugins: pluginsAPI,
   ticketGrab: ticketGrabAPI,
-  modelTrace: modelTraceAPI
+  modelTrace: modelTraceAPI,
+  userMessageLogs: userMessageLogAPI
 }
 
 export {
@@ -115,13 +117,16 @@ export {
   auditAPI,
   pluginsAPI,
   ticketGrabAPI,
-  modelTraceAPI
+  modelTraceAPI,
+  userMessageLogAPI
 }
 
 export default adminAPI
 
 // Re-export types used by components
 export type { AuditLog, AuditLogQuery, AuditLogListResponse } from './audit'
+export type { UserMessageLog, UserMessageLogQuery, UserMessageLogListResponse } from './userMessageLogs'
+export { listUserMessageLogs, getUserMessageLog } from './userMessageLogs'
 export type { BalanceHistoryItem } from './users'
 export type { ErrorPassthroughRule, CreateRuleRequest, UpdateRuleRequest } from './errorPassthrough'
 export type { BackupAgentHealth, DataManagementConfig } from './dataManagement'

@@ -101,6 +101,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // promptAudit
 		nil, // pluginManager
 		nil, // openAITicketGrab
+		nil, // userMessageLog
 	)
 
 	require.NotPanics(t, func() {

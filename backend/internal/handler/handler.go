@@ -43,6 +43,7 @@ type AdminHandlers struct {
 	Affiliate              *admin.AffiliateHandler
 	Compliance             *admin.ComplianceHandler
 	AuditLog               *admin.AuditLogHandler
+	UserMessageLog         *admin.UserMessageLogHandler
 	OpenAITicketGrab       *admin.OpenAITicketGrabHandler
 	CodexEnvRewrite        *admin.CodexEnvRewriteHandler
 	OpenAIModelTrace       *admin.OpenAIModelTraceHandler

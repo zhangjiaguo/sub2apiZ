@@ -6,6 +6,7 @@ import ops from './ops'
 import settings from './settings'
 import audit from './audit'
 import promptAudit from './promptAudit'
+import userMessages from './userMessages'
 import plugins from './plugins'
 import ticketGrab from './ticketGrab'
 import modelTrace from './modelTrace'
@@ -19,6 +20,7 @@ export default {
   ...settings,
   ...audit,
   ...promptAudit,
+  ...userMessages,
   ...plugins,
   ...ticketGrab,
   ...modelTrace,
