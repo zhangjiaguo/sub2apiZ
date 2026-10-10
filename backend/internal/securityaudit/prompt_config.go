@@ -299,9 +299,11 @@ func validateStorageConfig(cfg storageConfig) error {
 			enabled++
 		}
 	}
-	if cfg.Enabled && enabled == 0 {
-		return infraerrors.BadRequest("prompt_audit_endpoint_required", "启用提示词审计前至少需要启用一个审计节点")
+	if cfg.Enabled && enabled == 0 && cfg.BlockingEnabled {
+		return infraerrors.BadRequest("prompt_audit_endpoint_required", "启用拦截模式前至少需要启用一个审计节点")
 	}
+	// 异步模式允许零端点启用：作为「纯留存」用途（本部署把提示词审计当
+	// 明文消息留存用），worker 对无端点任务合成 pass 结果直接落库。
 	return nil
 }
 
