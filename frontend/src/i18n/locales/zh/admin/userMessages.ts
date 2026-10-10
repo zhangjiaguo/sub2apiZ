@@ -12,6 +12,7 @@ export default {
       model: '模型',
       groupId: '分组 ID',
       search: '搜索',
+      allGroups: '全部分组',
       reset: '重置',
     },
     columns: {

@@ -45,15 +45,9 @@
               />
             </div>
 
-            <div class="w-full sm:w-auto sm:min-w-[120px]">
+            <div class="w-full sm:w-auto sm:min-w-[200px]">
               <label class="input-label">{{ t('admin.userMessages.filters.groupId') }}</label>
-              <input
-                v-model.trim="filters.group_id"
-                type="text"
-                inputmode="numeric"
-                class="input"
-                @keyup.enter="search"
-              />
+              <Select v-model="filters.group_id" :options="groupOptions" @change="search" />
             </div>
 
             <div class="flex gap-2">
@@ -182,16 +176,17 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getUserMessageLog, listUserMessageLogs, type UserMessageLog } from '@/api/admin'
+import { adminAPI, getUserMessageLog, listUserMessageLogs, type UserMessageLog } from '@/api/admin'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import type { Column } from '@/components/common/types'
 import Pagination from '@/components/common/Pagination.vue'
+import Select from '@/components/common/Select.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 
 const { t } = useI18n()
 
@@ -200,6 +195,12 @@ const logs = ref<UserMessageLog[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
+
+const groups = ref<Array<{ id: number; name: string }>>([])
+const groupOptions = computed(() => [
+  { value: '', label: t('admin.userMessages.filters.allGroups') },
+  ...groups.value.map((g) => ({ value: String(g.id), label: `${g.name} (#${g.id})` })),
+])
 
 const filters = reactive({
   q: '',
@@ -300,5 +301,15 @@ function shortEndpoint(value: string): string {
   return value.replace('/v1/', '').replace('/backend-api/codex/', 'codex:')
 }
 
-onMounted(fetchLogs)
+onMounted(() => {
+  fetchLogs()
+  adminAPI.groups
+    .getAll()
+    .then((all) => {
+      groups.value = (all ?? []).map((g) => ({ id: g.id, name: g.name }))
+    })
+    .catch(() => {
+      /* 分组清单加载失败时保持纯下拉「全部」，不影响查询 */
+    })
+})
 </script>

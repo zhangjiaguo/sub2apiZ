@@ -49,8 +49,9 @@ export async function listUserMessageLogs(params: UserMessageLogQuery): Promise<
 }
 
 export async function getUserMessageLog(id: number): Promise<UserMessageLog> {
-  const { data } = await apiClient.get<{ code: number; data: UserMessageLog }>(`/admin/user-message-logs/${id}`)
-  return data.data
+  // apiClient 拦截器已解 {code,message,data} 信封，这里 data 即记录本体。
+  const { data } = await apiClient.get<UserMessageLog>(`/admin/user-message-logs/${id}`)
+  return data
 }
 
 const userMessageLogAPI = {

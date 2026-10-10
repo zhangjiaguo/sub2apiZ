@@ -12,6 +12,7 @@ export default {
       model: 'Model',
       groupId: 'Group ID',
       search: 'Search',
+      allGroups: 'All groups',
       reset: 'Reset',
     },
     columns: {
