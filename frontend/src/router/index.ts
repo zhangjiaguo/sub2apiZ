@@ -640,7 +640,6 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/admin/UserMessagesView.vue'),
     meta: {
       requiresAuth: true,
-      requiresAdmin: true,
       title: 'User Messages',
       titleKey: 'admin.userMessages.title',
       descriptionKey: 'admin.userMessages.description'

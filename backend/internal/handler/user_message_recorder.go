@@ -31,7 +31,7 @@ func recordUserMessage(c *gin.Context, apiKey *service.APIKey, subject middlewar
 	}
 	request := buildSecurityAuditRequest(c, apiKey, subject, protocol, model, body, stage).Clone()
 	svc.Submit(func() *service.UserMessageLog {
-		snapshot, err := securityaudit.ExtractPromptSnapshot(request)
+		snapshot, err := securityaudit.ExtractUserMessageSnapshot(request)
 		if err != nil {
 			return nil // 无用户文本（纯工具/系统请求）等 → 跳过
 		}

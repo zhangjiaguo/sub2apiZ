@@ -755,6 +755,10 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   if (withDashboard) {
     items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
   }
+  const messageViewGroups = (authStore.user as { message_view_groups?: number[] } | null)?.message_view_groups
+  if (!isAdmin.value && messageViewGroups && messageViewGroups.length > 0) {
+    items.push({ path: '/admin/user-messages', label: t('nav.userMessages'), icon: ChatIcon, hideInSimpleMode: true })
+  }
   items.push(
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },

@@ -132,6 +132,13 @@ func userMessageLogWhere(filter *service.UserMessageLogFilter) (string, []any) {
 	if filter.GroupID != nil {
 		args = append(args, *filter.GroupID)
 		conds = append(conds, fmt.Sprintf("group_id=$%d", len(args)))
+	} else if len(filter.AllowedGroupIDs) > 0 {
+		placeholders := make([]string, 0, len(filter.AllowedGroupIDs))
+		for _, id := range filter.AllowedGroupIDs {
+			args = append(args, id)
+			placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
+		}
+		conds = append(conds, "group_id IN ("+strings.Join(placeholders, ",")+")")
 	}
 	if filter.Model != "" {
 		args = append(args, filter.Model)

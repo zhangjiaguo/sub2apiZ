@@ -27,13 +27,14 @@ type AuthHandler struct {
 	redeemService        *service.RedeemService
 	totpService          *service.TotpService
 	userAttributeService *service.UserAttributeService
+	messageLogService    *service.UserMessageLogService
 
 	dingTalkClientInstance *DingTalkClient
 	dingTalkClientMu       sync.Mutex
 }
 
 // NewAuthHandler creates a new AuthHandler
-func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userService *service.UserService, settingService *service.SettingService, promoService *service.PromoService, redeemService *service.RedeemService, totpService *service.TotpService, userAttributeService *service.UserAttributeService) *AuthHandler {
+func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userService *service.UserService, settingService *service.SettingService, promoService *service.PromoService, redeemService *service.RedeemService, totpService *service.TotpService, userAttributeService *service.UserAttributeService, messageLogService *service.UserMessageLogService) *AuthHandler {
 	return &AuthHandler{
 		cfg:                  cfg,
 		authService:          authService,
@@ -43,6 +44,7 @@ func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userSe
 		redeemService:        redeemService,
 		totpService:          totpService,
 		userAttributeService: userAttributeService,
+		messageLogService:    messageLogService,
 	}
 }
 
@@ -443,6 +445,8 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 	type UserResponse struct {
 		userProfileResponse
 		RunMode string `json:"run_mode"`
+		// message_view_groups：用户消息页面的查看授权分组（空=无权限），供前端菜单显隐。
+		MessageViewGroups []int64 `json:"message_view_groups,omitempty"`
 	}
 
 	runMode := config.RunModeStandard
@@ -450,9 +454,17 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 		runMode = h.cfg.RunMode
 	}
 
+	var viewGroups []int64
+	if h.messageLogService != nil {
+		// 授权查询失败不影响登录态（fail-open 仅意味着菜单可能不显示）。
+		if groups, err := h.messageLogService.ViewerGroups(c.Request.Context(), subject.UserID); err == nil && len(groups) > 0 {
+			viewGroups = groups
+		}
+	}
 	response.Success(c, UserResponse{
 		userProfileResponse: userProfileResponseFromService(user, identities),
 		RunMode:             runMode,
+		MessageViewGroups:   viewGroups,
 	})
 }
 

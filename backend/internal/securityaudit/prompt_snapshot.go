@@ -33,6 +33,41 @@ func ExtractPromptSnapshot(req Request) (PromptSnapshot, error) {
 	return extractPromptSnapshot(req, false)
 }
 
+// ExtractUserMessageSnapshot 只保留用户发送的内容（role=user 的分段）：
+// 不含系统提示词 / instructions / developer 消息 / 助手历史 / 工具结果，
+// 供用户消息留存（user_message_logs）使用——运营侧只看用户真正发出的文本。
+func ExtractUserMessageSnapshot(req Request) (PromptSnapshot, error) {
+	var document any
+	if err := json.Unmarshal(req.Body, &document); err != nil {
+		return PromptSnapshot{}, errors.New("prompt audit request JSON is invalid")
+	}
+	extracted := extractProtocolSegments(req.Protocol, document)
+	var userSegments []promptSegment
+	for _, seg := range extracted {
+		if seg.user || seg.role == "user" {
+			userSegments = append(userSegments, seg)
+		}
+	}
+	if len(userSegments) == 0 {
+		return PromptSnapshot{}, ErrNoPromptText
+	}
+	_, metadataText := buildPrioritizedScanText(normalizeSegmentsLatestUserFirst(userSegments))
+	digest := sha256.Sum256([]byte(metadataText))
+	stage := strings.TrimSpace(req.Stage)
+	if stage == "" {
+		stage = "http"
+	}
+	return PromptSnapshot{
+		RequestID: req.RequestID, UserID: req.UserID, UsernameSnapshot: req.Username,
+		UserEmailSnapshot: req.UserEmail, APIKeyID: req.APIKeyID, APIKeyNameSnapshot: req.APIKeyName,
+		GroupID: cloneInt64Ptr(req.GroupID), GroupName: req.GroupName, Provider: req.Provider,
+		Endpoint: req.Endpoint, Protocol: req.Protocol, Model: req.Model,
+		PromptHash: hex.EncodeToString(digest[:]), RedactedPreview: BuildPromptPreview(metadataText, DefaultPromptPreviewMaxRunes),
+		FullPrompt:   BuildFullPrompt(metadataText, DefaultFullPromptMaxRunes),
+		PromptLength: utf8.RuneCountInString(metadataText), MessageCount: len(userSegments), Stage: stage,
+	}, nil
+}
+
 // ExtractBlockingPromptSnapshot builds the narrow, low-latency blocking input
 // when configured. Asynchronous auditing always uses ExtractPromptSnapshot so
 // the complete client-controlled transcript is retained for review.

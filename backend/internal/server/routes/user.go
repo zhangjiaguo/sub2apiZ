@@ -142,6 +142,8 @@ func RegisterUserRoutes(
 			monitors.GET("/:id/status", h.ChannelMonitor.GetStatus)
 		}
 
+
+		registerUserMessageViewerRoutes(authenticated, h)
 		// V2 passive views require feature on + mode=v2.
 		monitorV2 := authenticated.Group("/channel-monitor-v2")
 		monitorV2.Use(panelRateLimiter.Heavy())
@@ -154,5 +156,20 @@ func RegisterUserRoutes(
 			monitorV2.GET("/errors", h.ChannelMonitorV2.Errors)
 			monitorV2.GET("/users", h.ChannelMonitorV2.Users)
 		}
+	}
+}
+
+// registerUserMessageViewerRoutes 用户消息页面（查看者视角）：授权来自
+// user_message_viewers，未授权用户调用列表/详情直接 403。
+func registerUserMessageViewerRoutes(authenticated *gin.RouterGroup, h *handler.Handlers) {
+	if h == nil || h.UserMessageViewer == nil {
+		return
+	}
+	viewer := authenticated.Group("/user-message-logs")
+	{
+		viewer.GET("/my-groups", h.UserMessageViewer.MyGroups)
+		viewer.GET("/usage-summary", h.UserMessageViewer.UsageRanking)
+		viewer.GET("", h.UserMessageViewer.List)
+		viewer.GET("/detail/:id", h.UserMessageViewer.Get)
 	}
 }

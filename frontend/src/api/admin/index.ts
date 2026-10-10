@@ -125,8 +125,16 @@ export default adminAPI
 
 // Re-export types used by components
 export type { AuditLog, AuditLogQuery, AuditLogListResponse } from './audit'
-export type { UserMessageLog, UserMessageLogQuery, UserMessageLogListResponse } from './userMessageLogs'
-export { listUserMessageLogs, getUserMessageLog } from './userMessageLogs'
+export type { UserMessageLog, UserMessageLogQuery, UserMessageLogListResponse, GroupUsageRankingRow, UserMessageViewer } from './userMessageLogs'
+export {
+  listUserMessageLogs,
+  getUserMessageLog,
+  myViewerGroups,
+  groupUsageRanking,
+  listUserMessageViewers,
+  grantUserMessageViewer,
+  revokeUserMessageViewer,
+} from './userMessageLogs'
 export type { BalanceHistoryItem } from './users'
 export type { ErrorPassthroughRule, CreateRuleRequest, UpdateRuleRequest } from './errorPassthrough'
 export type { BackupAgentHealth, DataManagementConfig } from './dataManagement'
