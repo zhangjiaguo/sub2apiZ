@@ -11,6 +11,7 @@ import { useAdminComplianceStore } from '@/stores/adminCompliance'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
+import { myViewerGroups } from '@/api/admin/userMessageLogs'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
 
@@ -652,6 +653,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/admin/UserMessagesView.vue'),
     meta: {
       requiresAuth: true,
+      requiresUserMessageAccess: true,
       title: 'User Messages',
       titleKey: 'admin.userMessages.title',
       descriptionKey: 'admin.userMessages.description'
@@ -928,6 +930,23 @@ router.beforeEach(async (to, _from, next) => {
       query: { redirect: to.fullPath } // Save intended destination
     })
     return
+  }
+
+  if (to.meta.requiresUserMessageAccess) {
+    try {
+      // 页面直达也必须实时校验，不能信任本地缓存的角色或授权分组。
+      const currentUser = await authStore.refreshUser()
+      if (currentUser.role !== 'admin' && (await myViewerGroups()).length === 0) {
+        next('/dashboard')
+        return
+      }
+    } catch {
+      next(authStore.isAuthenticated ? '/dashboard' : {
+        path: '/login',
+        query: { redirect: to.fullPath }
+      })
+      return
+    }
   }
 
   // Check admin requirement

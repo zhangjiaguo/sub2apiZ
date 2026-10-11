@@ -8,15 +8,20 @@ type NavigationGuard = (
 
 const routerHarness = vi.hoisted(() => ({
   guard: null as NavigationGuard | null,
+  routes: [] as Array<{ path: string; meta?: Record<string, unknown> }>,
 }))
 
 const authStore = vi.hoisted(() => ({
   checkAuth: vi.fn(),
+  refreshUser: vi.fn(),
   isAuthenticated: true,
   isAdmin: false,
   isSimpleMode: false,
   hasPendingAuthSession: false,
 }))
+
+const viewerGroups = vi.hoisted(() => vi.fn())
+vi.mock('@/api/admin/userMessageLogs', () => ({ myViewerGroups: viewerGroups }))
 
 const appStore = vi.hoisted(() => ({
   siteName: 'Sub2API',
@@ -33,13 +38,16 @@ const appStore = vi.hoisted(() => ({
 
 vi.mock('vue-router', () => ({
   createWebHistory: vi.fn(() => ({})),
-  createRouter: vi.fn(() => ({
-    beforeEach: vi.fn((guard: NavigationGuard) => {
-      routerHarness.guard = guard
-    }),
-    afterEach: vi.fn(),
-    onError: vi.fn(),
-  })),
+  createRouter: vi.fn((options) => {
+    routerHarness.routes = options.routes
+    return {
+      beforeEach: vi.fn((guard: NavigationGuard) => {
+        routerHarness.guard = guard
+      }),
+      afterEach: vi.fn(),
+      onError: vi.fn(),
+    }
+  }),
 }))
 
 vi.mock('@/stores/auth', () => ({
@@ -179,8 +187,98 @@ describe('feature route guard', () => {
   })
 })
 
+describe('用户消息页面访问保护', () => {
+  beforeEach(() => {
+    authStore.isAuthenticated = true
+    authStore.isAdmin = false
+    authStore.isSimpleMode = false
+    authStore.refreshUser.mockReset().mockResolvedValue({ role: 'user' })
+    viewerGroups.mockReset().mockResolvedValue([])
+  })
+
+  function visitMessages() {
+    const route = routerHarness.routes.find((item) => item.path === '/admin/user-messages')
+    expect(route?.meta?.requiresUserMessageAccess).toBe(true)
+    return runGuard(route!.meta!, route!.path)
+  }
+
+  it('未登录时跳转登录页，不查询授权', async () => {
+    authStore.isAuthenticated = false
+    const { navigation, next } = visitMessages()
+    await navigation
+    expect(next).toHaveBeenCalledWith({ path: '/login', query: { redirect: '/admin/user-messages' } })
+    expect(authStore.refreshUser).not.toHaveBeenCalled()
+    expect(viewerGroups).not.toHaveBeenCalled()
+  })
+
+  it('确认当前管理员身份后允许进入', async () => {
+    authStore.isAdmin = true
+    authStore.refreshUser.mockResolvedValue({ role: 'admin' })
+    const { navigation, next } = visitMessages()
+    await navigation
+    expect(authStore.refreshUser).toHaveBeenCalledOnce()
+    expect(viewerGroups).not.toHaveBeenCalled()
+    expect(next).toHaveBeenCalledWith()
+  })
+
+  it('等待服务器授权检查完成才允许普通用户进入', async () => {
+    const deferred = createDeferred<Array<{ id: number; name: string }>>()
+    viewerGroups.mockReturnValue(deferred.promise)
+    const { navigation, next } = visitMessages()
+    await vi.waitFor(() => expect(viewerGroups).toHaveBeenCalledOnce())
+    expect(next).not.toHaveBeenCalled()
+    deferred.resolve([{ id: 7, name: '授权分组' }])
+    await navigation
+    expect(next).toHaveBeenCalledWith()
+  })
+
+  it('未授权用户直接输入地址也无法进入', async () => {
+    const { navigation, next } = visitMessages()
+    await navigation
+    expect(next).toHaveBeenCalledWith('/dashboard')
+  })
+
+  it('伪造或过期的管理员缓存不能绕过服务器授权', async () => {
+    authStore.isAdmin = true
+    const { navigation, next } = visitMessages()
+    await navigation
+    expect(viewerGroups).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith('/dashboard')
+  })
+
+  it('重新进入时再次校验，撤销授权后拒绝进入', async () => {
+    viewerGroups.mockResolvedValueOnce([{ id: 7, name: '授权分组' }])
+    const first = visitMessages()
+    await first.navigation
+    expect(first.next).toHaveBeenCalledWith()
+    const second = visitMessages()
+    await second.navigation
+    expect(viewerGroups).toHaveBeenCalledTimes(2)
+    expect(second.next).toHaveBeenCalledWith('/dashboard')
+  })
+
+  it.each(['身份', '分组'])('%s校验失败时拒绝进入', async (kind) => {
+    if (kind === '身份') authStore.refreshUser.mockRejectedValue(new Error('网络异常'))
+    else viewerGroups.mockRejectedValue({ status: 403 })
+    const { navigation, next } = visitMessages()
+    await navigation
+    expect(next).toHaveBeenCalledWith('/dashboard')
+  })
+
+  it('会话失效时返回登录页', async () => {
+    authStore.refreshUser.mockImplementation(async () => {
+      authStore.isAuthenticated = false
+      throw { status: 401 }
+    })
+    const { navigation, next } = visitMessages()
+    await navigation
+    expect(next).toHaveBeenCalledWith({ path: '/login', query: { redirect: '/admin/user-messages' } })
+  })
+})
+
 describe('subscription route guard (opt-out flag)', () => {
   beforeEach(() => {
+    authStore.isAuthenticated = true
     authStore.isAdmin = false
     authStore.isSimpleMode = false
     appStore.publicSettingsLoaded = true
