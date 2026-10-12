@@ -162,6 +162,12 @@
               </div>
             </template>
 
+            <template #cell-username="{ value }">
+              <span class="block max-w-[200px] truncate text-sm text-gray-700 dark:text-gray-300" :title="value">
+                {{ value || '-' }}
+              </span>
+            </template>
+
             <template #cell-model="{ row }">
               <div class="min-w-0 max-w-[160px]">
                 <div class="truncate font-mono text-sm text-gray-800 dark:text-gray-200" :title="row.model">
@@ -388,6 +394,7 @@ const granting = ref(false)
 const columns: Column[] = [
   { key: 'created_at', label: t('admin.userMessages.columns.time') },
   { key: 'user', label: t('admin.userMessages.columns.user') },
+  { key: 'username', label: t('admin.users.columns.username') },
   { key: 'model', label: t('admin.userMessages.columns.model') },
   { key: 'endpoint', label: t('admin.userMessages.columns.endpoint') },
   { key: 'content', label: t('admin.userMessages.columns.content') },

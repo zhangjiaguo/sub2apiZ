@@ -31,6 +31,10 @@ vi.mock('@/stores', () => ({
   useAuthStore: () => ({ isAdmin: true, user: null }),
 }))
 
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: {} }),
+}))
+
 vi.mock('vue-i18n', () => ({
   createI18n: () => ({ global: { t: (k: string) => k } }),
   useI18n: () => ({
