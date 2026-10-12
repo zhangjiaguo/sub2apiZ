@@ -20,8 +20,9 @@ func NewUserMessageLogRepository(db *sql.DB) *UserMessageLogRepository {
 	return &UserMessageLogRepository{db: db}
 }
 
-const userMessageLogColumns = `id,created_at,request_id,user_id,username,user_email,api_key_id,api_key_name,
-	group_id,group_name,provider,endpoint,protocol,model,stream,stage,content,content_length,truncated`
+// 查询时显示用户管理中的当前用户名；用户不存在或已删除时保留消息快照。
+const userMessageLogColumns = `m.id,m.created_at,m.request_id,m.user_id,COALESCE(u.username, m.username),m.user_email,m.api_key_id,m.api_key_name,
+	m.group_id,m.group_name,m.provider,m.endpoint,m.protocol,m.model,m.stream,m.stage,m.content,m.content_length,m.truncated`
 
 // InsertBatch 批量写入（单事务）。
 func (r *UserMessageLogRepository) InsertBatch(ctx context.Context, logs []*service.UserMessageLog) error {
@@ -84,8 +85,8 @@ func (r *UserMessageLogRepository) List(ctx context.Context, filter *service.Use
 		pageSize = 200
 	}
 	query := fmt.Sprintf(
-		"SELECT id,created_at,request_id,user_id,username,user_email,api_key_id,api_key_name,group_id,group_name,provider,endpoint,protocol,model,stream,stage,left(content,300),content_length,truncated FROM user_message_logs %s ORDER BY id DESC LIMIT %d OFFSET %d",
-		where, pageSize, (page-1)*pageSize)
+		"SELECT %s FROM (SELECT * FROM user_message_logs %s ORDER BY id DESC LIMIT %d OFFSET %d) m LEFT JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL ORDER BY m.id DESC",
+		strings.Replace(userMessageLogColumns, "m.content,", "left(m.content,300),", 1), where, pageSize, (page-1)*pageSize)
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -105,7 +106,7 @@ func (r *UserMessageLogRepository) List(ctx context.Context, filter *service.Use
 // Get 按 ID 返回全文记录。
 func (r *UserMessageLogRepository) Get(ctx context.Context, id int64) (*service.UserMessageLog, error) {
 	row := r.db.QueryRowContext(ctx,
-		"SELECT "+userMessageLogColumns+" FROM user_message_logs WHERE id=$1", id)
+		"SELECT "+userMessageLogColumns+" FROM user_message_logs m LEFT JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL WHERE m.id=$1", id)
 	item, err := scanUserMessageLog(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrUserMessageLogNotFound
