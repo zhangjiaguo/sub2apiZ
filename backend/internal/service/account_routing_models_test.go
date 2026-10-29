@@ -33,7 +33,7 @@ func TestAccount_RoutingModelAllowlist(t *testing.T) {
 				"openai_passthrough": true,
 			},
 		}
-		require.True(t, account.IsModelSupported("gpt-5.5"))
+		require.True(t, account.IsModelSupported("gpt-6.1-sol"))
 		require.True(t, account.IsModelSupported("anything-custom"))
 	})
 
@@ -69,7 +69,7 @@ func TestAccount_RoutingModelAllowlist(t *testing.T) {
 			},
 		}
 		require.Nil(t, account.GetRoutingModelAllowlist())
-		require.True(t, account.IsModelSupported("gpt-5.5"))
+		require.True(t, account.IsModelSupported("gpt-6.1-sol"))
 	})
 
 	t.Run("类型异常视为未配置", func(t *testing.T) {
@@ -81,7 +81,7 @@ func TestAccount_RoutingModelAllowlist(t *testing.T) {
 			},
 		}
 		require.Nil(t, account.GetRoutingModelAllowlist())
-		require.True(t, account.IsModelSupported("gpt-5.5"))
+		require.True(t, account.IsModelSupported("gpt-6.1-sol"))
 	})
 
 	t.Run("getter 去空白保序", func(t *testing.T) {
@@ -94,4 +94,20 @@ func TestAccount_RoutingModelAllowlist(t *testing.T) {
 		}
 		require.Equal(t, []string{"gpt-5.6-sol", "gpt-6-sol"}, account.GetRoutingModelAllowlist())
 	})
+}
+
+// 调度器直接调用统一入口时，普通和 Compact 请求都不能绕过自有白名单。
+func TestRoutingModelAllowlistInUnifiedOpenAISupport(t *testing.T) {
+	for _, typ := range []string{AccountTypeOAuth, AccountTypeAPIKey} {
+		for _, passthrough := range []bool{false, true} {
+			account := &Account{Platform: PlatformOpenAI, Type: typ, Extra: map[string]any{
+				"openai_passthrough": passthrough,
+				"routing_models":     []any{"gpt-6.1-sol"},
+			}}
+			for _, compact := range []bool{false, true} {
+				require.True(t, supportsOpenAIRequestModel(account, "gpt-6.1-sol", compact))
+				require.False(t, supportsOpenAIRequestModel(account, "gpt-6-astra", compact))
+			}
+		}
+	}
 }
