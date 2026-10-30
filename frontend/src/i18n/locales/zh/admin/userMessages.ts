@@ -41,6 +41,9 @@ export default {
       cost: '成本$',
       pickFirst: '请先选择分组',
       empty: '该分组近段时间没有用量',
+      allUsersHint: '按费用排序，包含当前时段用量为 0 的用户。',
+      groupUsersHint: '展示当前分组在所选时段有用量的用户。',
+      loadFailed: '加载用户用量失败，请重试。',
     },
     detail: {
       title: '消息全文',

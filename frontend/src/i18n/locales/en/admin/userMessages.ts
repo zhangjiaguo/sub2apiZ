@@ -41,6 +41,9 @@ export default {
       cost: 'Cost $',
       pickFirst: 'Select a group first',
       empty: 'No usage in this group recently',
+      allUsersHint: 'Sorted by cost, including users with zero usage in this period.',
+      groupUsersHint: 'Users with usage in the selected group and period.',
+      loadFailed: 'Failed to load user usage. Please try again.',
     },
     detail: {
       title: 'Full message',

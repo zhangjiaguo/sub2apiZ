@@ -272,14 +272,25 @@ type UserMessageViewerEntry struct {
 
 // GroupUsageRanking 是分组内按用户的用量排行行。
 type GroupUsageRanking struct {
-	UserID      int64   `json:"user_id"`
-	Username    string  `json:"username"`
-	UserEmail   string  `json:"user_email"`
-	Requests    int64   `json:"requests"`
-	InputTokens int64   `json:"input_tokens"`
-	OutputTokens int64  `json:"output_tokens"`
-	CacheRead   int64   `json:"cache_read_tokens"`
-	TotalCost   float64 `json:"total_cost"`
+	UserID       int64   `json:"user_id"`
+	Username     string  `json:"username"`
+	UserEmail    string  `json:"user_email"`
+	Requests     int64   `json:"requests"`
+	InputTokens  int64   `json:"input_tokens"`
+	OutputTokens int64   `json:"output_tokens"`
+	CacheRead    int64   `json:"cache_read_tokens"`
+	TotalCost    float64 `json:"total_cost"`
+}
+
+// GroupUsageRankingList 为用户用量提供真实分页，避免固定排行榜截断用户。
+type GroupUsageRankingList struct {
+	Items    []*GroupUsageRanking `json:"items"`
+	Total    int64                `json:"total"`
+	Page     int                  `json:"page"`
+	PageSize int                  `json:"page_size"`
+	Pages    int                  `json:"pages"`
+	Days     int                  `json:"days"`
+	GroupID  int64                `json:"group_id"`
 }
 
 // UserMessageViewerRepository 由 repository 层实现。
@@ -288,7 +299,7 @@ type UserMessageViewerRepository interface {
 	GroupsForUser(ctx context.Context, userID int64) ([]int64, error)
 	Grant(ctx context.Context, userID, groupID, createdBy int64) error
 	Revoke(ctx context.Context, id int64) error
-	RankGroupUsage(ctx context.Context, groupID int64, since time.Time, limit int) ([]*GroupUsageRanking, error)
+	RankGroupUsage(ctx context.Context, groupID int64, since time.Time, page, pageSize int) (*GroupUsageRankingList, error)
 	GroupNames(ctx context.Context, ids []int64) ([]*ViewerGroupInfo, error)
 }
 
@@ -363,11 +374,24 @@ func (s *UserMessageLogService) GetForViewer(ctx context.Context, userID, id int
 }
 
 // RankGroupUsage 分组用量排行（admin 任意组；viewer 由 handler 校验授权）。
-func (s *UserMessageLogService) RankGroupUsage(ctx context.Context, groupID int64, days int) ([]*GroupUsageRanking, error) {
+func (s *UserMessageLogService) RankGroupUsage(ctx context.Context, groupID int64, days, page, pageSize int) (*GroupUsageRankingList, error) {
 	if days <= 0 || days > 90 {
 		days = 7
 	}
-	return s.viewerRepo.RankGroupUsage(ctx, groupID, time.Now().AddDate(0, 0, -days), 50)
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	} else if pageSize > 100 {
+		pageSize = 100
+	}
+	result, err := s.viewerRepo.RankGroupUsage(ctx, groupID, time.Now().AddDate(0, 0, -days), page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	result.Days, result.GroupID = days, groupID
+	return result, nil
 }
 
 // ViewerGroupInfo 是查看者可见分组的 id+name。

@@ -158,10 +158,11 @@ func (h *UserMessageViewerHandler) UsageRanking(c *gin.Context) {
 			days = n
 		}
 	}
-	rows, err := h.logService.RankGroupUsage(c.Request.Context(), groupID, days)
+	page, pageSize := response.ParsePagination(c)
+	rows, err := h.logService.RankGroupUsage(c.Request.Context(), groupID, days, page, pageSize)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}
-	response.Success(c, gin.H{"items": rows, "days": days, "group_id": groupID})
+	response.Success(c, rows)
 }

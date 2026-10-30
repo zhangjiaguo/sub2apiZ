@@ -97,10 +97,14 @@ func (h *UserMessageLogHandler) Get(c *gin.Context) {
 // ListUsageRanking 分组用量排行（admin 任意组）。
 // GET /api/v1/admin/user-message-logs/usage-summary?group_id=&days=
 func (h *UserMessageLogHandler) ListUsageRanking(c *gin.Context) {
-	groupID, err := strconv.ParseInt(c.Query("group_id"), 10, 64)
-	if err != nil || groupID <= 0 {
-		response.BadRequest(c, "Invalid group_id")
-		return
+	var groupID int64
+	if raw := strings.TrimSpace(c.Query("group_id")); raw != "" {
+		var err error
+		groupID, err = strconv.ParseInt(raw, 10, 64)
+		if err != nil || groupID <= 0 {
+			response.BadRequest(c, "Invalid group_id")
+			return
+		}
 	}
 	days := 7
 	if v := strings.TrimSpace(c.Query("days")); v != "" {
@@ -108,12 +112,13 @@ func (h *UserMessageLogHandler) ListUsageRanking(c *gin.Context) {
 			days = n
 		}
 	}
-	rows, err := h.logService.RankGroupUsage(c.Request.Context(), groupID, days)
+	page, pageSize := response.ParsePagination(c)
+	rows, err := h.logService.RankGroupUsage(c.Request.Context(), groupID, days, page, pageSize)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}
-	response.Success(c, gin.H{"items": rows, "days": days, "group_id": groupID})
+	response.Success(c, rows)
 }
 
 // ListViewers 授权清单。

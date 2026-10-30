@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 import UserMessagesView from '../UserMessagesView.vue'
+import Pagination from '@/components/common/Pagination.vue'
+import Select from '@/components/common/Select.vue'
 
 const { listUserMessageLogs, groupUsageRanking, myViewerGroups, listUserMessageViewers, getGroups } = vi.hoisted(() => ({
   listUserMessageLogs: vi.fn(),
@@ -71,7 +73,7 @@ describe('UserMessagesView pagination', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getGroups.mockResolvedValue([{ id: 20, name: 'G' }])
-    groupUsageRanking.mockResolvedValue([])
+    groupUsageRanking.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
     listUserMessageViewers.mockResolvedValue([])
     listUserMessageLogs.mockResolvedValue({
       items: fakeLogs(20),
@@ -116,5 +118,75 @@ describe('UserMessagesView pagination', () => {
     })
     await flushPromises()
     expect(wrapper.html()).not.toContain('pagination.showing')
+  })
+
+  it('管理员默认分页展示全部用户，翻页后排名继续累计', async () => {
+    const usage = (id: number) => ({ user_id: id, username: `用户${id}`, user_email: '', requests: 0, input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, total_cost: 0 })
+    groupUsageRanking.mockResolvedValue({ items: [usage(1)], total: 106, page: 1, page_size: 20, pages: 6 })
+    const wrapper = mount(UserMessagesView, { global: { stubs: {
+      AppLayout: { template: '<div><slot /></div>' },
+      TablePageLayout: { template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
+      teleport: true,
+    } } })
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'admin.userMessages.tabs.usage')!.trigger('click')
+    await flushPromises()
+    expect(groupUsageRanking).toHaveBeenLastCalledWith(null, 7, false, { page: 1, page_size: 20 })
+    expect(wrapper.findComponent(Pagination).props('total')).toBe(106)
+    expect(wrapper.text()).toContain('用户1')
+
+    groupUsageRanking.mockResolvedValue({ items: [usage(21)], total: 106, page: 2, page_size: 20, pages: 6 })
+    wrapper.findComponent(Pagination).vm.$emit('update:page', 2)
+    await flushPromises()
+    expect(groupUsageRanking).toHaveBeenLastCalledWith(null, 7, false, { page: 2, page_size: 20 })
+    expect(wrapper.find('tbody tr td').text()).toBe('21')
+    expect(wrapper.text()).toContain('用户21')
+
+    await wrapper.findAll('button').find(button => button.text() === 'admin.userMessages.tabs.messages')!.trigger('click')
+    expect(wrapper.findComponent(Pagination).props('page')).toBe(1)
+    expect(wrapper.findComponent(Pagination).props('total')).toBe(917)
+    await wrapper.findAll('button').find(button => button.text() === 'admin.userMessages.tabs.usage')!.trigger('click')
+    await flushPromises()
+
+    groupUsageRanking.mockResolvedValue({ items: [usage(1)], total: 9, page: 1, page_size: 20, pages: 1 })
+    const groupSelect = wrapper.findAllComponents(Select).find(select => select.props('options').some((option: { value: string }) => option.value === '20'))!
+    groupSelect.vm.$emit('update:modelValue', '20')
+    groupSelect.vm.$emit('change', '20')
+    await flushPromises()
+    expect(groupUsageRanking).toHaveBeenLastCalledWith(20, 7, false, { page: 1, page_size: 20 })
+    expect(wrapper.findComponent(Pagination).props('page')).toBe(1)
+    groupUsageRanking.mockResolvedValue({ items: [usage(1)], total: 9, page: 1, page_size: 50, pages: 1 })
+    wrapper.findComponent(Pagination).vm.$emit('update:pageSize', 50)
+    await flushPromises()
+    expect(groupUsageRanking).toHaveBeenLastCalledWith(20, 7, false, { page: 1, page_size: 50 })
+    const daysSelect = wrapper.findAllComponents(Select).find(select => select.props('options').some((option: { value: string }) => option.value === '14'))!
+    daysSelect.vm.$emit('update:modelValue', '30')
+    daysSelect.vm.$emit('change', '30')
+    await flushPromises()
+    expect(groupUsageRanking).toHaveBeenLastCalledWith(20, 30, false, { page: 1, page_size: 50 })
+    wrapper.unmount()
+  })
+
+  it('较早的用量请求不能覆盖后来选择的分组结果', async () => {
+    let resolveOld: (value: unknown) => void = () => {}
+    groupUsageRanking.mockImplementation(() => new Promise(resolve => { resolveOld = resolve }))
+    const wrapper = mount(UserMessagesView, { global: { stubs: {
+      AppLayout: { template: '<div><slot /></div>' },
+      TablePageLayout: { template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
+      teleport: true,
+    } } })
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'admin.userMessages.tabs.usage')!.trigger('click')
+    const oldResponse = resolveOld
+    groupUsageRanking.mockResolvedValue({ items: [{ user_id: 9, username: '当前分组用户', user_email: '', requests: 1, input_tokens: 1, output_tokens: 1, cache_read_tokens: 0, total_cost: 1 }], total: 1, page: 1, page_size: 20, pages: 1 })
+    const groupSelect = wrapper.findAllComponents(Select).find(select => select.props('options').some((option: { value: string }) => option.value === '20'))!
+    groupSelect.vm.$emit('update:modelValue', '20')
+    groupSelect.vm.$emit('change', '20')
+    await flushPromises()
+    oldResponse({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
+    await flushPromises()
+    expect(wrapper.text()).toContain('当前分组用户')
+    expect(wrapper.findComponent(Pagination).props('total')).toBe(1)
+    wrapper.unmount()
   })
 })

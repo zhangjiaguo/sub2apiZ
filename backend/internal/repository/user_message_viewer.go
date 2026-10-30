@@ -11,7 +11,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
-
 type UserMessageViewerRepository struct {
 	db *sql.DB
 }
@@ -91,35 +90,72 @@ func (r *UserMessageViewerRepository) Revoke(ctx context.Context, id int64) erro
 	return nil
 }
 
-// RankGroupUsage 按分组聚合 usage_logs 的用户用量排行（近 N 天）。
-func (r *UserMessageViewerRepository) RankGroupUsage(ctx context.Context, groupID int64, since time.Time, limit int) ([]*GroupUsageRanking, error) {
-	if limit <= 0 || limit > 100 {
-		limit = 50
+// RankGroupUsage 按费用稳定排序分页；管理员全分组列表也展示当前时段用量为零的用户。
+// 指定分组时仅返回在该分组有用量的用户，查看者不会借此枚举其他分组用户。
+func (r *UserMessageViewerRepository) RankGroupUsage(ctx context.Context, groupID int64, since time.Time, page, pageSize int) (*service.GroupUsageRankingList, error) {
+	if pageSize <= 0 {
+		pageSize = 20
+	} else if pageSize > 100 {
+		pageSize = 100
 	}
-	rows, err := r.db.QueryContext(ctx, `
-		SELECT l.user_id, coalesce(max(u.username),''), coalesce(max(u.email),''),
-			count(*), coalesce(sum(l.input_tokens),0), coalesce(sum(l.output_tokens),0),
-			coalesce(sum(l.cache_read_tokens),0), coalesce(sum(l.total_cost),0)::float8
-		FROM usage_logs l
-		JOIN users u ON u.id = l.user_id
-		WHERE l.group_id = $1 AND l.created_at >= $2 AND l.user_id IS NOT NULL
-		GROUP BY l.user_id
-		ORDER BY sum(l.total_cost) DESC NULLS LAST
-		LIMIT $3`, groupID, since, limit)
+	if page < 1 {
+		page = 1
+	}
+	args := []any{since}
+	usageWhere := "l.created_at >= $1"
+	userWhere := "u.deleted_at IS NULL"
+	countQuery := "SELECT count(*) FROM users u WHERE " + userWhere
+	var countArgs []any
+	if groupID > 0 {
+		args = append(args, groupID)
+		usageWhere += " AND l.group_id = $2"
+		userWhere += " AND usage.user_id IS NOT NULL"
+		countQuery += " AND EXISTS (SELECT 1 FROM usage_logs l WHERE l.user_id = u.id AND " + usageWhere + ")"
+		countArgs = args
+	}
+	result := &service.GroupUsageRankingList{Items: []*GroupUsageRanking{}, Page: page, PageSize: pageSize, Pages: 1}
+	if err := r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&result.Total); err != nil {
+		return nil, err
+	}
+	if result.Total == 0 {
+		result.Page = 1
+		return result, nil
+	}
+	result.Pages = int((result.Total-1)/int64(pageSize)) + 1
+	if result.Page > result.Pages {
+		result.Page = result.Pages
+	}
+	limitArg := len(args) + 1
+	args = append(args, pageSize, (result.Page-1)*pageSize)
+	query := `WITH usage AS (
+		SELECT l.user_id, count(*) AS requests,
+			coalesce(sum(l.input_tokens),0) AS input_tokens,
+			coalesce(sum(l.output_tokens),0) AS output_tokens,
+			coalesce(sum(l.cache_read_tokens),0) AS cache_read_tokens,
+			coalesce(sum(l.total_cost),0)::float8 AS total_cost
+		FROM usage_logs l WHERE ` + usageWhere + ` GROUP BY l.user_id
+	)
+	SELECT u.id, coalesce(u.username,''), coalesce(u.email,''),
+		coalesce(usage.requests,0), coalesce(usage.input_tokens,0),
+		coalesce(usage.output_tokens,0), coalesce(usage.cache_read_tokens,0), coalesce(usage.total_cost,0)
+	FROM users u LEFT JOIN usage ON usage.user_id = u.id
+	WHERE ` + userWhere + `
+	ORDER BY coalesce(usage.total_cost,0) DESC, u.id ASC
+	LIMIT ` + fmt.Sprintf("$%d OFFSET $%d", limitArg, limitArg+1)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []*GroupUsageRanking{}
 	for rows.Next() {
 		item := &GroupUsageRanking{}
 		if err := rows.Scan(&item.UserID, &item.Username, &item.UserEmail,
 			&item.Requests, &item.InputTokens, &item.OutputTokens, &item.CacheRead, &item.TotalCost); err != nil {
 			return nil, err
 		}
-		out = append(out, item)
+		result.Items = append(result.Items, item)
 	}
-	return out, rows.Err()
+	return result, rows.Err()
 }
 
 // GroupNames 按分组 ID 集取 id+name（查不到的组返回 #id 占位）。

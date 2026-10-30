@@ -86,27 +86,30 @@
       <!-- Table -->
       <template #table>
         <!-- 用量排行（tab=usage） -->
-        <div v-if="activeTab === 'usage'" class="card p-4 sm:p-6">
-          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div v-if="activeTab === 'usage'" class="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
+          <div class="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
             <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
               {{ activeRankGroupName }}
             </h3>
             <div class="flex items-center gap-2">
               <div class="w-48">
-                <Select v-model="filters.group_id" :options="groupOptions" @change="fetchRanking" />
+                <Select v-model="filters.group_id" :options="groupOptions" @change="onRankingFiltersChange" />
               </div>
               <span class="text-xs text-gray-400">{{ t('admin.userMessages.ranking.days') }}</span>
               <div class="w-24">
-                <Select v-model="rankDays" :options="daysOptions" @change="fetchRanking" />
+                <Select v-model="rankDays" :options="daysOptions" @change="onRankingFiltersChange" />
               </div>
             </div>
           </div>
+          <p v-if="rankAvailable" class="mb-3 shrink-0 text-xs text-gray-400">
+            {{ t(isAdmin && activeRankGroup === null ? 'admin.userMessages.ranking.allUsersHint' : 'admin.userMessages.ranking.groupUsersHint') }}
+          </p>
           <div v-if="!rankAvailable" class="py-10 text-center text-sm text-gray-400">
             {{ t('admin.userMessages.ranking.pickFirst') }}
           </div>
-          <div v-else class="overflow-x-auto">
+          <div v-else class="table-wrapper min-h-0 flex-1 overflow-auto" :aria-busy="rankLoading">
             <table class="w-full text-sm">
-              <thead>
+              <thead class="sticky top-0 z-10">
                 <tr class="border-b border-gray-200 text-left text-xs text-gray-400 dark:border-gray-700">
                   <th class="py-2 pr-3">#</th>
                   <th class="py-2 pr-3">{{ t('admin.userMessages.ranking.user') }}</th>
@@ -124,7 +127,7 @@
                   class="cursor-pointer border-b border-gray-100 transition-colors last:border-0 hover:bg-primary-50/50 dark:border-gray-800 dark:hover:bg-primary-900/10"
                   @click="drillUser(row.user_id)"
                 >
-                  <td class="py-2 pr-3 font-mono text-xs text-gray-400">{{ i + 1 }}</td>
+                  <td class="py-2 pr-3 font-mono text-xs text-gray-400">{{ (rankPage - 1) * rankPageSize + i + 1 }}</td>
                   <td class="py-2 pr-3">
                     <div class="font-medium text-gray-800 dark:text-gray-200">{{ row.username || row.user_email || `#${row.user_id}` }}</div>
                     <div class="font-mono text-xs text-gray-400">{{ row.user_email }}</div>
@@ -136,7 +139,9 @@
                   <td class="py-2 text-right font-mono text-xs">${{ row.total_cost.toFixed(2) }}</td>
                 </tr>
                 <tr v-if="ranking.length === 0">
-                  <td colspan="7" class="py-6 text-center text-xs text-gray-400">{{ t('admin.userMessages.ranking.empty') }}</td>
+                  <td colspan="7" class="py-6 text-center text-xs text-gray-400" role="status">
+                    {{ t(rankLoading ? 'common.loading' : rankError ? 'admin.userMessages.ranking.loadFailed' : 'admin.userMessages.ranking.empty') }}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -221,7 +226,7 @@
         </div>
       </template>
 
-      <!-- Pagination（专用插槽，消息 tab） -->
+      <!-- 两个标签分别维护分页状态，分页条固定在可视区域底部。 -->
       <template #pagination>
         <Pagination
           v-if="activeTab === 'messages' && total > 0"
@@ -230,6 +235,15 @@
           :page-size="pageSize"
           @update:page="onPageChange"
           @update:pageSize="onPageSizeChange"
+        />
+        <Pagination
+          v-else-if="activeTab === 'usage' && rankTotal > 0"
+          :total="rankTotal"
+          :page="rankPage"
+          :page-size="rankPageSize"
+          show-jump
+          @update:page="onRankPageChange"
+          @update:pageSize="onRankPageSizeChange"
         />
       </template>
     </TablePageLayout>
@@ -373,6 +387,12 @@ const tabs = computed(() => [
 ])
 
 const ranking = ref<GroupUsageRankingRow[]>([])
+const rankPage = ref(1)
+const rankPageSize = ref(20)
+const rankTotal = ref(0)
+const rankLoading = ref(false)
+const rankError = ref(false)
+let rankRequestSequence = 0
 const rankDays = ref('7')
 const daysOptions = [
   { value: '1', label: '1' },
@@ -407,8 +427,9 @@ const activeRankGroup = computed(() => {
   if (!isAdmin.value && groups.value.length === 1) return groups.value[0].id
   return null
 })
-const rankAvailable = computed(() => activeRankGroup.value !== null)
+const rankAvailable = computed(() => isAdmin.value || activeRankGroup.value !== null)
 const activeRankGroupName = computed(() => {
+  if (isAdmin.value && activeRankGroup.value === null) return t('admin.userMessages.filters.allGroups')
   const g = groups.value.find((x) => String(x.id) === String(activeRankGroup.value))
   return g ? `${g.name} (#${g.id})` : `#${activeRankGroup.value}`
 })
@@ -498,16 +519,51 @@ function onPageSizeChange(next: number) {
 }
 
 async function fetchRanking() {
+  const sequence = ++rankRequestSequence
   const gid = activeRankGroup.value
-  if (!gid) {
+  if (!rankAvailable.value) {
     ranking.value = []
+    rankTotal.value = 0
+    rankLoading.value = false
     return
   }
+  rankLoading.value = true
+  rankError.value = false
+  ranking.value = []
   try {
-    ranking.value = await groupUsageRanking(gid, Number(rankDays.value) || 7, !isAdmin.value)
+    const result = await groupUsageRanking(gid, Number(rankDays.value) || 7, !isAdmin.value, {
+      page: rankPage.value,
+      page_size: rankPageSize.value,
+    })
+    if (sequence !== rankRequestSequence) return
+    ranking.value = result.items ?? []
+    rankTotal.value = result.total ?? 0
+    rankPage.value = result.page
+    rankPageSize.value = result.page_size
   } catch {
+    if (sequence !== rankRequestSequence) return
     ranking.value = []
+    rankTotal.value = 0
+    rankError.value = true
+  } finally {
+    if (sequence === rankRequestSequence) rankLoading.value = false
   }
+}
+
+function onRankingFiltersChange() {
+  rankPage.value = 1
+  fetchRanking()
+}
+
+function onRankPageChange(next: number) {
+  rankPage.value = next
+  fetchRanking()
+}
+
+function onRankPageSizeChange(next: number) {
+  rankPageSize.value = next
+  rankPage.value = 1
+  fetchRanking()
 }
 
 async function openDetail(id: number) {
@@ -619,9 +675,9 @@ onMounted(() => {
         // 查看者默认锁定到唯一授权分组（多组时保持「选择分组」手动选）。
         if (groups.value.length === 1) filters.group_id = String(groups.value[0].id)
         search()
+        if (activeTab.value === 'usage') onRankingFiltersChange()
       })
       .catch(() => {})
   }
-  fetchRanking()
 })
 </script>

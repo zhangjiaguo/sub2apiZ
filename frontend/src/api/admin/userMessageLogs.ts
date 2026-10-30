@@ -84,12 +84,17 @@ export async function myViewerGroups(): Promise<Array<{ id: number; name: string
   return data ?? []
 }
 
-export async function groupUsageRanking(groupId: number, days = 7, viewer = false): Promise<GroupUsageRankingRow[]> {
-  const { data } = await apiClient.get<{ items: GroupUsageRankingRow[] }>(
+export async function groupUsageRanking(
+  groupId: number | null,
+  days = 7,
+  viewer = false,
+  pagination: { page: number; page_size: number } = { page: 1, page_size: 20 }
+): Promise<PaginatedResponse<GroupUsageRankingRow>> {
+  const { data } = await apiClient.get<PaginatedResponse<GroupUsageRankingRow>>(
     `${viewer ? VIEWER_BASE : ADMIN_BASE}/usage-summary`,
-    { params: { group_id: groupId, days } }
+    { params: { ...(groupId === null ? {} : { group_id: groupId }), days, ...pagination } }
   )
-  return data.items ?? []
+  return data
 }
 
 export async function listUserMessageViewers(): Promise<UserMessageViewer[]> {
