@@ -326,6 +326,8 @@ func TestProtocolRulesWithProtocolSets(t *testing.T) {
 	}
 }
 
+var commandCodeGatewayCatalogTestSequence atomic.Uint64
+
 // 经真实入口验证：目录声明模型支持入站协议时原样直通，不做协议转换。
 func TestCommandCodeGatewayPassesThroughCatalogProtocols(t *testing.T) {
 	type observation struct {
@@ -334,7 +336,8 @@ func TestCommandCodeGatewayPassesThroughCatalogProtocols(t *testing.T) {
 	}
 	forward := func(t *testing.T, ingress routingMatrixIngress, model string, catalog map[string][]string) observation {
 		t.Helper()
-		base := fmt.Sprintf("http://cc-%s-%d.example", strings.ReplaceAll(t.Name(), "/", "-"), time.Now().UnixNano())
+		// 测试地址使用进程序号保证唯一，不依赖墙钟精度；缓存也在结束时清理。
+		base := fmt.Sprintf("http://cc-%s-%d.example", strings.ReplaceAll(t.Name(), "/", "-"), commandCodeGatewayCatalogTestSequence.Add(1))
 		account := commandCodeTestAccount(12)
 		account.Credentials["api_base_urls"] = map[string]any{
 			APIProtocolChatCompletions: base + "/provider/v1",
@@ -343,6 +346,11 @@ func TestCommandCodeGatewayPassesThroughCatalogProtocols(t *testing.T) {
 		}
 		url := buildOpenAIModelsURL(base + "/provider/v1")
 		key := modelProtocolCatalogKey(account, url)
+		t.Cleanup(func() {
+			upstreamModelProtocols.mu.Lock()
+			delete(upstreamModelProtocols.entries, key)
+			upstreamModelProtocols.mu.Unlock()
+		})
 		if catalog != nil {
 			upstreamModelProtocols.store(key, catalog, nil, time.Now())
 		} else {
