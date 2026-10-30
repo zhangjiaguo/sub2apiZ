@@ -516,8 +516,22 @@ func isGeminiCompatibleImageModel(model string) bool {
 		(strings.HasSuffix(model, "-image") || strings.Contains(model, "-image-"))
 }
 
+// isAPIKeyCompatibleImageModel 只将已知图片家族及其带前缀型号放行到 API Key 透传。
+// 分类时识别末段型号，转发时仍保留完整 ID；这些型号不能进入 Codex 原生生图路径。
+func isAPIKeyCompatibleImageModel(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	familyModel := model
+	if index := strings.LastIndexByte(model, '/'); index >= 0 {
+		familyModel = model[index+1:]
+	}
+	if isGeminiCompatibleImageModel(familyModel) || familyModel == "qwen-image" || strings.HasPrefix(familyModel, "qwen-image-") {
+		return true
+	}
+	return familyModel != model && isOpenAIImageGenerationModel(familyModel)
+}
+
 func validateCompatibleImagesModel(model string) error {
-	if isGeminiCompatibleImageModel(model) {
+	if isAPIKeyCompatibleImageModel(model) {
 		return nil
 	}
 	return validateOpenAIImagesModel(model)
@@ -526,7 +540,7 @@ func validateCompatibleImagesModel(model string) error {
 // RequiredCapabilityForModel also applies the API-key-only fence when channel
 // mapping introduces a compatible provider model after request parsing.
 func (req *OpenAIImagesRequest) RequiredCapabilityForModel(model string) OpenAIImagesCapability {
-	if isGeminiCompatibleImageModel(model) {
+	if isAPIKeyCompatibleImageModel(model) {
 		return OpenAIImagesCapabilityAPIKey
 	}
 	return req.RequiredCapability
@@ -548,7 +562,7 @@ func classifyOpenAIImagesCapability(req *OpenAIImagesRequest) OpenAIImagesCapabi
 	if req == nil {
 		return OpenAIImagesCapabilityNative
 	}
-	if isGeminiCompatibleImageModel(req.Model) {
+	if isAPIKeyCompatibleImageModel(req.Model) {
 		return OpenAIImagesCapabilityAPIKey
 	}
 	if req.ExplicitModel || req.ExplicitSize {
