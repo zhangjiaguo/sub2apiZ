@@ -186,6 +186,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 
 	// Calculate cost
 	tokens := UsageTokens{
+		PricingDetails:       result.Usage.PricingDetails,
 		InputTokens:          actualInputTokens,
 		ImageInputTokens:     max(result.Usage.ImageInputTokens-result.Usage.ImageCacheReadTokens, 0),
 		ImageCacheReadTokens: result.Usage.ImageCacheReadTokens,

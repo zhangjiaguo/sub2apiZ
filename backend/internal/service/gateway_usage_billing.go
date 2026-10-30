@@ -1237,6 +1237,7 @@ func (s *GatewayService) calculateImageCost(
 	}
 	if resolved != nil && resolved.Source == PricingSourceChannel {
 		tokens := UsageTokens{
+			PricingDetails:    result.Usage.PricingDetails,
 			InputTokens:       result.Usage.InputTokens,
 			OutputTokens:      result.Usage.OutputTokens,
 			ImageOutputTokens: result.Usage.ImageOutputTokens,
@@ -1303,6 +1304,7 @@ func (s *GatewayService) calculateTokenCost(
 	pricingAt time.Time,
 ) *CostBreakdown {
 	tokens := UsageTokens{
+		PricingDetails:        result.Usage.PricingDetails,
 		InputTokens:           result.Usage.InputTokens,
 		OutputTokens:          result.Usage.OutputTokens,
 		CacheCreationTokens:   result.Usage.CacheCreationInputTokens,

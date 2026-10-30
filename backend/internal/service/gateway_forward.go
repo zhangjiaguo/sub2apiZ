@@ -14,6 +14,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pricingrules"
 	"github.com/tidwall/gjson"
 
 	"github.com/gin-gonic/gin"
@@ -93,6 +94,12 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	if parsed == nil {
 		return nil, fmt.Errorf("parse request: empty request")
 	}
+	requestPricing := pricingrules.RequestFacts(parsed.Body.Bytes())
+	defer func() {
+		if result != nil {
+			result.Usage.PricingDetails.MergeRequest(requestPricing)
+		}
+	}()
 	// API-key mappings and OAuth native IDs are resolved before mimicry.
 	validationModel := parsed.Model
 	if account != nil {

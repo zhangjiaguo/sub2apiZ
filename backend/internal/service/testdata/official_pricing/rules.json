@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "models": {
+    "gpt-6-astra": {
+      "cache_write_12h_multiplier": 2
+    },
+    "gpt-6.1-sol": {
+      "cache_write_12h_multiplier": 2
+    },
+    "gpt-6.1-terra": {
+      "cache_write_12h_multiplier": 2
+    },
+    "gpt-6-luna": {
+      "cache_write_12h_multiplier": 2
+    },
+    "gpt-6-sol": {
+      "cache_write_12h_multiplier": 2
+    },
+    "gpt-5.6-sol": {
+      "cache_write_12h_multiplier": 2
+    },
+    "gpt-5.6-terra": {
+      "cache_write_12h_multiplier": 2
+    },
+    "gpt-5.6-luna": {
+      "cache_write_12h_multiplier": 2
+    },
+    "deepseek-v4-flash": {
+      "holiday_off_peak": true
+    },
+    "deepseek-v4-flash-0731": {
+      "holiday_off_peak": true
+    },
+    "deepseek-v4-pro": {
+      "holiday_off_peak": true
+    },
+    "deepseek-v4-pro-0813": {
+      "holiday_off_peak": true
+    },
+    "deepseek-v4.1-flash": {
+      "holiday_off_peak": true
+    },
+    "deepseek-v4.1-flash-1017": {
+      "holiday_off_peak": true
+    },
+    "qwen3-14b": {
+      "thinking_output_multiplier": 2.5,
+      "thinking_default": true
+    },
+    "qwen3-32b": {
+      "thinking_output_multiplier": 2.5,
+      "thinking_default": true
+    },
+    "qwen3-8b": {
+      "thinking_output_multiplier": 2.5,
+      "thinking_default": true
+    },
+    "qwen3.8-27b": {
+      "explicit_cache_read_multiplier": 0.5
+    },
+    "qwen3.8-2.4t-a95b": {
+      "explicit_cache_read_multiplier": 0.6666666666666666
+    },
+    "glm-4.5-air": {
+      "output_tiers": [
+        {
+          "min_input_tokens": 32000,
+          "min_output_tokens": 0,
+          "input_multiplier": 1.5,
+          "output_multiplier": 4,
+          "cache_read_multiplier": 1.5,
+          "cache_write_multiplier": 1.5
+        },
+        {
+          "min_input_tokens": 0,
+          "min_output_tokens": 200,
+          "output_multiplier": 3
+        }
+      ]
+    }
+  },
+  "china_holidays": {
+    "2026": [
+      "2026-01-01",
+      "2026-01-02",
+      "2026-01-03",
+      "2026-02-15",
+      "2026-02-16",
+      "2026-02-17",
+      "2026-02-18",
+      "2026-02-19",
+      "2026-02-20",
+      "2026-02-21",
+      "2026-02-22",
+      "2026-02-23",
+      "2026-04-04",
+      "2026-04-05",
+      "2026-04-06",
+      "2026-05-01",
+      "2026-05-02",
+      "2026-05-03",
+      "2026-05-04",
+      "2026-05-05",
+      "2026-06-19",
+      "2026-06-20",
+      "2026-06-21",
+      "2026-09-25",
+      "2026-09-26",
+      "2026-09-27",
+      "2026-10-01",
+      "2026-10-02",
+      "2026-10-03",
+      "2026-10-04",
+      "2026-10-05",
+      "2026-10-06",
+      "2026-10-07"
+    ]
+  }
+}

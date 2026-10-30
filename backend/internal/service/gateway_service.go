@@ -23,6 +23,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pricingrules"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/cespare/xxhash/v2"
@@ -597,13 +598,14 @@ func (r *AccountSelectionResult) ProfitGateActive() bool {
 
 // ClaudeUsage 表示Claude API返回的usage信息
 type ClaudeUsage struct {
-	InputTokens              int `json:"input_tokens"`
-	OutputTokens             int `json:"output_tokens"`
-	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
-	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
-	CacheCreation5mTokens    int // 5分钟缓存创建token（来自嵌套 cache_creation 对象）
-	CacheCreation1hTokens    int // 1小时缓存创建token（来自嵌套 cache_creation 对象）
-	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
+	PricingDetails           pricingrules.Facts `json:"-"` // 原生请求模式与缓存寿命观察
+	InputTokens              int                `json:"input_tokens"`
+	OutputTokens             int                `json:"output_tokens"`
+	CacheCreationInputTokens int                `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int                `json:"cache_read_input_tokens"`
+	CacheCreation5mTokens    int                // 5分钟缓存创建token（来自嵌套 cache_creation 对象）
+	CacheCreation1hTokens    int                // 1小时缓存创建token（来自嵌套 cache_creation 对象）
+	ImageOutputTokens        int                `json:"image_output_tokens,omitempty"`
 }
 
 // ForwardResult 转发结果

@@ -14,6 +14,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pricingrules"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
@@ -186,6 +187,7 @@ func pricingWithPriorityMultiplier(base *ModelPricing, multiplier float64) *Mode
 
 // UsageTokens 使用的token数量
 type UsageTokens struct {
+	PricingDetails        pricingrules.Facts // 上游缓存寿命和请求模式的计费观察
 	InputTokens           int
 	ImageInputTokens      int
 	ImageCacheReadTokens  int
@@ -298,6 +300,9 @@ func isDeepSeekModel(model string) bool {
 // 01:00–04:00 与 06:00–10:00 UTC（半开区间），仅工作日；
 // 周末（北京时间周六/周日）全天低谷。北京时间用固定 +8 偏移（无夏令时）。
 func deepseekPeakMultiplierAt(now time.Time) float64 {
+	if pricingrules.ChinaHoliday2026(now) {
+		return 1
+	}
 	beijing := now.In(time.FixedZone("Asia/Shanghai", 8*3600))
 	switch beijing.Weekday() {
 	case time.Saturday, time.Sunday:
@@ -318,6 +323,7 @@ func isDeepSeekProModel(model string) bool {
 
 // BillingService 计费服务
 type BillingService struct {
+	tokenRules     *pricingrules.Rules // 启动时校验的持久规则快照
 	cfg            *config.Config
 	pricingService *PricingService
 	fallbackPrices map[string]*ModelPricing // 硬编码回退价格
@@ -338,6 +344,11 @@ func NewBillingService(cfg *config.Config, pricingService *PricingService) *Bill
 
 	// 初始化硬编码回退价格（当动态价格不可用时使用）
 	s.initFallbackPricing()
+	rules, err := pricingrules.LoadDefault()
+	if err != nil {
+		panic(err)
+	}
+	s.tokenRules = rules
 
 	return s
 }
@@ -1567,6 +1578,7 @@ func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, 
 			return nil, err
 		}
 		breakdown := s.computeTokenBreakdown(pricing, input.Tokens, input.RateMultiplier, input.ServiceTier, applyLongContextBilling && !input.DisableModelLongContextPricing)
+		applyOfficialTokenRules(s.tokenRules, input.Model, input.Tokens, input.RateMultiplier, breakdown)
 		applyCostBreakdownMultiplier(breakdown, reasoningEffortBillingMultiplier(input.ReasoningEffort, pricing.ReasoningEffortMultipliers))
 		return breakdown, nil
 	}
@@ -1642,7 +1654,7 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	// 仅作用于默认价卡（Source=LiteLLM，无分组/渠道自定义定价）——分组/渠道
 	// 自定义定价保持运营者语义，不叠加。先克隆再乘，避免污染共享 fallbackPrices 指针。
 	if resolved.Source == PricingSourceLiteLLM && isDeepSeekModel(input.Model) {
-		if mult := deepseekPeakMultiplierAt(pricingAt); mult > 1 {
+		if mult := deepseekPeakMultiplierAt(pricingAt); mult > 1 && !s.tokenRules.SkipPeak(input.Model, pricingAt) {
 			cloned := *pricing
 			cloned.InputPricePerToken *= mult
 			cloned.OutputPricePerToken *= mult
@@ -1655,7 +1667,12 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	applyLongCtx := len(resolved.Intervals) == 0 && contextTierPricingEnabled && !input.DisableModelLongContextPricing
 
 	breakdown := s.computeTokenBreakdown(pricing, input.Tokens, input.RateMultiplier, input.ServiceTier, applyLongCtx)
-	applyCostBreakdownMultiplier(breakdown, resolvedChannelTimeMultiplier(resolved, input.PricingAt))
+	applyOfficialTokenRules(s.tokenRules, input.Model, input.Tokens, input.RateMultiplier, breakdown)
+	timeMultiplier := resolvedChannelTimeMultiplier(resolved, input.PricingAt)
+	if s.tokenRules.SkipPeak(input.Model, pricingAt) {
+		timeMultiplier = 1
+	}
+	applyCostBreakdownMultiplier(breakdown, timeMultiplier)
 	applyCostBreakdownMultiplier(breakdown, reasoningEffortBillingMultiplier(input.ReasoningEffort, pricing.ReasoningEffortMultipliers))
 	return breakdown, nil
 }
@@ -1896,7 +1913,9 @@ func (s *BillingService) calculateCostInternalWithPolicy(
 		return nil, err
 	}
 
-	return s.computeTokenBreakdown(pricing, tokens, rateMultiplier, serviceTier, longContextBillingEnabled), nil
+	breakdown := s.computeTokenBreakdown(pricing, tokens, rateMultiplier, serviceTier, longContextBillingEnabled)
+	applyOfficialTokenRules(s.tokenRules, model, tokens, rateMultiplier, breakdown)
+	return breakdown, nil
 }
 
 // applyModelSpecificPricingPolicy 对目录数据做模型特定修正：DeepSeek 官方价

@@ -1478,3 +1478,18 @@ func TestRelay_OnTurnComplete_RealOpenAIStream_FirstTokenMs(t *testing.T) {
 	require.NotNil(t, result.FirstTokenMs)
 	require.Greater(t, *result.FirstTokenMs, 0)
 }
+
+// TestOfficialCacheTTLPerTurn 验证每轮终态的十二小时缓存明细能够进入结算并累积到会话总量。
+// 第二次清算空轮次不会重复收费，下一轮沿用独立的计数。
+func TestOfficialCacheTTLPerTurn(t *testing.T) {
+	state := &relayState{}
+	body := []byte(`{"type":"response.completed","response":{"usage":{"input_tokens":2000,"output_tokens":10,"input_tokens_details":{"cache_write_tokens":1000,"cache_write_tokens_details":{"ttl_30m_tokens":750,"ttl_12h_tokens":250}}}}}`)
+	usage := parseUsageAndAccumulate(state, body, "response.completed", nil)
+	require.Equal(t, 250, usage.PricingDetails.CacheWrite12hTokens)
+	first := finalizeRelayTurnUsage(state)
+	require.Equal(t, 250, first.PricingDetails.CacheWrite12hTokens)
+	require.Equal(t, 0, finalizeRelayTurnUsage(state).PricingDetails.CacheWrite12hTokens)
+	parseUsageAndAccumulate(state, body, "response.completed", nil)
+	finalizeRelayTurnUsage(state)
+	require.Equal(t, 500, state.usage.PricingDetails.CacheWrite12hTokens)
+}

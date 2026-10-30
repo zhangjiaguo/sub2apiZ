@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pricingrules"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -72,7 +73,13 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	promptCacheKey string,
 	defaultMappedModel string,
 	compatPromptCacheTenantIsolated bool,
-) (*OpenAIForwardResult, error) {
+) (forwarded *OpenAIForwardResult, forwardErr error) {
+	requestPricing := pricingrules.RequestFacts(body)
+	defer func() {
+		if forwarded != nil {
+			forwarded.Usage.PricingDetails.MergeRequest(requestPricing)
+		}
+	}()
 	rememberOpenCodeInboundBody(c, body)
 	beginUpstreamResponseModelObservation(c)
 	ClearActualOpenAIUpstreamEndpoint(c)

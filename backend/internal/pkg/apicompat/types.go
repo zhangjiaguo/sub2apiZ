@@ -524,8 +524,9 @@ type ResponsesUsage struct {
 func (u *ResponsesUsage) UnmarshalJSON(data []byte) error {
 	type responsesUsageAlias ResponsesUsage
 	type cacheTokenPresence struct {
-		CacheCreationTokens *int `json:"cache_creation_tokens"`
-		CacheWriteTokens    *int `json:"cache_write_tokens"`
+		CacheCreationInputTokens *int `json:"cache_creation_input_tokens"` // 支持显式零值的百炼缓存别名
+		CacheCreationTokens      *int `json:"cache_creation_tokens"`
+		CacheWriteTokens         *int `json:"cache_write_tokens"`
 	}
 	var aux struct {
 		responsesUsageAlias
@@ -580,6 +581,10 @@ func (u *ResponsesUsage) UnmarshalJSON(data []byte) error {
 		canonicalCacheCreationTokens = nestedPresence.InputTokensDetails.CacheCreationTokens
 	case nestedPresence.PromptTokensDetails != nil && nestedPresence.PromptTokensDetails.CacheCreationTokens != nil:
 		canonicalCacheCreationTokens = nestedPresence.PromptTokensDetails.CacheCreationTokens
+	case nestedPresence.InputTokensDetails != nil && nestedPresence.InputTokensDetails.CacheCreationInputTokens != nil:
+		canonicalCacheCreationTokens = nestedPresence.InputTokensDetails.CacheCreationInputTokens
+	case nestedPresence.PromptTokensDetails != nil && nestedPresence.PromptTokensDetails.CacheCreationInputTokens != nil:
+		canonicalCacheCreationTokens = nestedPresence.PromptTokensDetails.CacheCreationInputTokens
 	}
 	if canonicalCacheCreationTokens != nil {
 		u.CacheCreationInputTokens = max(*canonicalCacheCreationTokens, 0)
@@ -592,10 +597,12 @@ func (u *ResponsesUsage) UnmarshalJSON(data []byte) error {
 
 // ResponsesInputTokensDetails breaks down input token usage.
 type ResponsesInputTokensDetails struct {
-	CachedTokens        int `json:"cached_tokens,omitempty"`
-	AudioTokens         int `json:"audio_tokens,omitempty"`
-	CacheCreationTokens int `json:"cache_creation_tokens,omitempty"`
-	CacheWriteTokens    int `json:"cache_write_tokens,omitempty"`
+	CacheCreationInputTokens int                     `json:"cache_creation_input_tokens,omitempty"` // 百炼显式缓存写入别名
+	CacheWriteTokensDetails  *CacheWriteTokenDetails `json:"cache_write_tokens_details,omitempty"`  // 标准缓存写入TTL明细
+	CachedTokens             int                     `json:"cached_tokens,omitempty"`
+	AudioTokens              int                     `json:"audio_tokens,omitempty"`
+	CacheCreationTokens      int                     `json:"cache_creation_tokens,omitempty"`
+	CacheWriteTokens         int                     `json:"cache_write_tokens,omitempty"`
 }
 
 // ResponsesOutputTokensDetails breaks down output token usage.
@@ -804,13 +811,15 @@ type ChatUsage struct {
 //   - completion_tokens_details: reasoning_tokens, audio_tokens,
 //     accepted_prediction_tokens, rejected_prediction_tokens
 type ChatTokenDetails struct {
-	CachedTokens             int `json:"cached_tokens,omitempty"`
-	AudioTokens              int `json:"audio_tokens,omitempty"`
-	CacheCreationTokens      int `json:"cache_creation_tokens,omitempty"`
-	CacheWriteTokens         int `json:"cache_write_tokens,omitempty"`
-	ReasoningTokens          int `json:"reasoning_tokens,omitempty"`
-	AcceptedPredictionTokens int `json:"accepted_prediction_tokens,omitempty"`
-	RejectedPredictionTokens int `json:"rejected_prediction_tokens,omitempty"`
+	CacheCreationInputTokens int                     `json:"cache_creation_input_tokens,omitempty"` // 百炼显式缓存写入别名
+	CacheWriteTokensDetails  *CacheWriteTokenDetails `json:"cache_write_tokens_details,omitempty"`  // 标准缓存写入TTL明细
+	CachedTokens             int                     `json:"cached_tokens,omitempty"`
+	AudioTokens              int                     `json:"audio_tokens,omitempty"`
+	CacheCreationTokens      int                     `json:"cache_creation_tokens,omitempty"`
+	CacheWriteTokens         int                     `json:"cache_write_tokens,omitempty"`
+	ReasoningTokens          int                     `json:"reasoning_tokens,omitempty"`
+	AcceptedPredictionTokens int                     `json:"accepted_prediction_tokens,omitempty"`
+	RejectedPredictionTokens int                     `json:"rejected_prediction_tokens,omitempty"`
 }
 
 // ChatCompletionsChunk is a single streaming chunk from POST /v1/chat/completions.
@@ -866,3 +875,10 @@ func (d ChatDelta) reasoningText() *string {
 const DefaultMinMaxOutputTokens = 128
 
 const minMaxOutputTokens = DefaultMinMaxOutputTokens
+
+// CacheWriteTokenDetails 是缓存写入总量下的三十分钟和十二小时子集。
+// 转换协议时两个子集随总量保留，防止下游把长寿命写入按短寿命单价结算。
+type CacheWriteTokenDetails struct {
+	TTL30mTokens int `json:"ttl_30m_tokens,omitempty"` // 三十分钟写入子集
+	TTL12hTokens int `json:"ttl_12h_tokens,omitempty"` // 十二小时写入子集
+}

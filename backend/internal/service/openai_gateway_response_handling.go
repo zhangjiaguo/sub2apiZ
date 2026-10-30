@@ -16,6 +16,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pricingrules"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
@@ -1288,6 +1289,12 @@ func mergeOpenAIUsageNonZero(dst *OpenAIUsage, src OpenAIUsage) {
 	if src.CacheReadInputTokens > 0 {
 		dst.CacheReadInputTokens = src.CacheReadInputTokens
 	}
+	if src.PricingDetails.CacheWrite12hTokens > 0 {
+		dst.PricingDetails.CacheWrite12hTokens = src.PricingDetails.CacheWrite12hTokens
+	}
+	if src.PricingDetails.ReasoningTokens > 0 {
+		dst.PricingDetails.ReasoningTokens = src.PricingDetails.ReasoningTokens
+	}
 	if src.ImageOutputTokens > 0 {
 		dst.ImageOutputTokens = src.ImageOutputTokens
 	}
@@ -1569,6 +1576,7 @@ func openAIUsageFromGJSON(value gjson.Result) (OpenAIUsage, bool) {
 		value.Get("prompt_tokens_details.image_tokens"),
 	)
 	return OpenAIUsage{
+		PricingDetails:           pricingrules.UsageFacts(value),
 		InputTokens:              int(inputTokens),
 		ImageInputTokens:         imageInputTokens,
 		OutputTokens:             int(outputTokens),
@@ -1600,6 +1608,8 @@ func openAICacheCreationTokensFromUsage(value gjson.Result) int {
 	for _, nested := range []gjson.Result{
 		value.Get("input_tokens_details.cache_write_tokens"),
 		value.Get("prompt_tokens_details.cache_write_tokens"),
+		value.Get("input_tokens_details.cache_creation_input_tokens"),
+		value.Get("prompt_tokens_details.cache_creation_input_tokens"),
 		value.Get("input_tokens_details.cache_creation_tokens"),
 		value.Get("prompt_tokens_details.cache_creation_tokens"),
 	} {

@@ -15,6 +15,7 @@ import (
 	coderws "github.com/coder/websocket"
 	"github.com/tidwall/gjson"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pricingrules"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
 
@@ -25,6 +26,7 @@ type FrameConn interface {
 }
 
 type Usage struct {
+	PricingDetails           pricingrules.Facts // 每轮缓存寿命和思考用量观察
 	InputTokens              int
 	ImageInputTokens         int
 	OutputTokens             int
@@ -1156,6 +1158,7 @@ func parseUsageAndAccumulate(
 		))
 	}
 	parsedUsage := Usage{
+		PricingDetails:           pricingrules.UsageFacts(usageResult),
 		InputTokens:              inputTokens,
 		ImageInputTokens:         int(imageInputTokens),
 		OutputTokens:             outputTokens,
@@ -1191,6 +1194,12 @@ func mergeRelayUsageNonZero(dst *Usage, src Usage) {
 	if src.OutputTokens > 0 {
 		dst.OutputTokens = src.OutputTokens
 	}
+	if src.PricingDetails.CacheWrite12hTokens > 0 {
+		dst.PricingDetails.CacheWrite12hTokens = src.PricingDetails.CacheWrite12hTokens
+	}
+	if src.PricingDetails.ReasoningTokens > 0 {
+		dst.PricingDetails.ReasoningTokens = src.PricingDetails.ReasoningTokens
+	}
 	if src.CacheCreationInputTokens > 0 {
 		dst.CacheCreationInputTokens = src.CacheCreationInputTokens
 	}
@@ -1214,6 +1223,8 @@ func finalizeRelayTurnUsage(state *relayState) Usage {
 	state.usage.ImageInputTokens += turnUsage.ImageInputTokens
 	state.usage.OutputTokens += turnUsage.OutputTokens
 	state.usage.CacheCreationInputTokens += turnUsage.CacheCreationInputTokens
+	state.usage.PricingDetails.CacheWrite12hTokens += turnUsage.PricingDetails.CacheWrite12hTokens
+	state.usage.PricingDetails.ReasoningTokens += turnUsage.PricingDetails.ReasoningTokens
 	state.usage.CacheReadInputTokens += turnUsage.CacheReadInputTokens
 	state.usage.ImageOutputTokens += turnUsage.ImageOutputTokens
 	state.turnUsage = Usage{}
@@ -1234,6 +1245,8 @@ func openAICacheCreationTokensFromUsage(value gjson.Result) int {
 	for _, field := range []string{
 		"input_tokens_details.cache_write_tokens",
 		"prompt_tokens_details.cache_write_tokens",
+		"input_tokens_details.cache_creation_input_tokens",
+		"prompt_tokens_details.cache_creation_input_tokens",
 		"input_tokens_details.cache_creation_tokens",
 		"prompt_tokens_details.cache_creation_tokens",
 	} {
