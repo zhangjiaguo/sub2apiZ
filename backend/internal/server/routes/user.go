@@ -142,7 +142,6 @@ func RegisterUserRoutes(
 			monitors.GET("/:id/status", h.ChannelMonitor.GetStatus)
 		}
 
-
 		registerUserMessageViewerRoutes(authenticated, h)
 		// V2 passive views require feature on + mode=v2.
 		monitorV2 := authenticated.Group("/channel-monitor-v2")
@@ -169,6 +168,7 @@ func registerUserMessageViewerRoutes(authenticated *gin.RouterGroup, h *handler.
 	{
 		viewer.GET("/my-groups", h.UserMessageViewer.MyGroups)
 		viewer.GET("/usage-summary", h.UserMessageViewer.UsageRanking)
+		viewer.GET("/usage-summary/export", h.UserMessageViewer.ExportUsageRanking)
 		viewer.GET("", h.UserMessageViewer.List)
 		viewer.GET("/detail/:id", h.UserMessageViewer.Get)
 	}

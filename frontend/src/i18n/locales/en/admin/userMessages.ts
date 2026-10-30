@@ -44,6 +44,11 @@ export default {
       allUsersHint: 'Sorted by cost, including users with zero usage in this period.',
       groupUsersHint: 'Users with usage in the selected group and period.',
       loadFailed: 'Failed to load user usage. Please try again.',
+      exportReport: 'Export report',
+      exportHint: 'Export all users matching the selected group and period, with totals, as an Excel-compatible CSV.',
+      exporting: 'Exporting…',
+      exportFailed: 'Export failed. Please try again.',
+      exportReady: 'The full report is ready, including all pages matching the selected filters.',
     },
     detail: {
       title: 'Full message',

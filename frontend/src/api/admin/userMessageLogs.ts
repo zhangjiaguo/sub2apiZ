@@ -97,6 +97,23 @@ export async function groupUsageRanking(
   return data
 }
 
+export async function exportGroupUsageReport(groupId: number | null, days = 7, viewer = false): Promise<{ blob: Blob; filename: string }> {
+  const { data, headers } = await apiClient.get<Blob>(`${viewer ? VIEWER_BASE : ADMIN_BASE}/usage-summary/export`, {
+    params: { ...(groupId === null ? {} : { group_id: groupId }), days },
+    responseType: 'blob',
+  })
+  const disposition = String(headers['content-disposition'] ?? '')
+  const encoded = /filename\*=utf-8''([^;]+)/i.exec(disposition)
+  const plain = /filename="([^"]+)"/i.exec(disposition)
+  let filename = `用户用量_${groupId === null ? '全部分组' : `分组${groupId}`}_近${days}天.csv`
+  try {
+    filename = encoded ? decodeURIComponent(encoded[1]) : plain?.[1] || filename
+  } catch {
+    // 无效文件名头沿用本地生成的名称，不影响完整报表下载。
+  }
+  return { blob: data, filename }
+}
+
 export async function listUserMessageViewers(): Promise<UserMessageViewer[]> {
   const { data } = await apiClient.get<UserMessageViewer[]>(`${ADMIN_BASE}/viewers`)
   return data
@@ -115,6 +132,7 @@ const userMessageLogAPI = {
   get: getUserMessageLog,
   myViewerGroups,
   groupUsageRanking,
+  exportGroupUsageReport,
   listUserMessageViewers,
   grantUserMessageViewer,
   revokeUserMessageViewer,

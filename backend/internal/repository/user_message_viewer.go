@@ -127,7 +127,41 @@ func (r *UserMessageViewerRepository) RankGroupUsage(ctx context.Context, groupI
 	}
 	limitArg := len(args) + 1
 	args = append(args, pageSize, (result.Page-1)*pageSize)
-	query := `WITH usage AS (
+	query, _ := groupUsageRankingQuery(groupID, since)
+	query += " LIMIT " + fmt.Sprintf("$%d OFFSET $%d", limitArg, limitArg+1)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result.Items, err = scanGroupUsageRankingRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ListGroupUsage 使用同一条查询导出完整筛选结果，避免跨分页读取时用户排名变动。
+func (r *UserMessageViewerRepository) ListGroupUsage(ctx context.Context, groupID int64, since time.Time) ([]*GroupUsageRanking, error) {
+	query, args := groupUsageRankingQuery(groupID, since)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanGroupUsageRankingRows(rows)
+}
+
+func groupUsageRankingQuery(groupID int64, since time.Time) (string, []any) {
+	args := []any{since}
+	usageWhere := "l.created_at >= $1"
+	userWhere := "u.deleted_at IS NULL"
+	if groupID > 0 {
+		args = append(args, groupID)
+		usageWhere += " AND l.group_id = $2"
+		userWhere += " AND usage.user_id IS NOT NULL"
+	}
+	return `WITH usage AS (
 		SELECT l.user_id, count(*) AS requests,
 			coalesce(sum(l.input_tokens),0) AS input_tokens,
 			coalesce(sum(l.output_tokens),0) AS output_tokens,
@@ -140,22 +174,20 @@ func (r *UserMessageViewerRepository) RankGroupUsage(ctx context.Context, groupI
 		coalesce(usage.output_tokens,0), coalesce(usage.cache_read_tokens,0), coalesce(usage.total_cost,0)
 	FROM users u LEFT JOIN usage ON usage.user_id = u.id
 	WHERE ` + userWhere + `
-	ORDER BY coalesce(usage.total_cost,0) DESC, u.id ASC
-	LIMIT ` + fmt.Sprintf("$%d OFFSET $%d", limitArg, limitArg+1)
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+	ORDER BY coalesce(usage.total_cost,0) DESC, u.id ASC`, args
+}
+
+func scanGroupUsageRankingRows(rows *sql.Rows) ([]*GroupUsageRanking, error) {
+	items := []*GroupUsageRanking{}
 	for rows.Next() {
 		item := &GroupUsageRanking{}
 		if err := rows.Scan(&item.UserID, &item.Username, &item.UserEmail,
 			&item.Requests, &item.InputTokens, &item.OutputTokens, &item.CacheRead, &item.TotalCost); err != nil {
 			return nil, err
 		}
-		result.Items = append(result.Items, item)
+		items = append(items, item)
 	}
-	return result, rows.Err()
+	return items, rows.Err()
 }
 
 // GroupNames 按分组 ID 集取 id+name（查不到的组返回 #id 占位）。

@@ -3,6 +3,7 @@ package admin
 
 import (
 	"errors"
+	"mime"
 	"strconv"
 	"strings"
 	"time"
@@ -97,21 +98,11 @@ func (h *UserMessageLogHandler) Get(c *gin.Context) {
 // ListUsageRanking 分组用量排行（admin 任意组）。
 // GET /api/v1/admin/user-message-logs/usage-summary?group_id=&days=
 func (h *UserMessageLogHandler) ListUsageRanking(c *gin.Context) {
-	var groupID int64
-	if raw := strings.TrimSpace(c.Query("group_id")); raw != "" {
-		var err error
-		groupID, err = strconv.ParseInt(raw, 10, 64)
-		if err != nil || groupID <= 0 {
-			response.BadRequest(c, "Invalid group_id")
-			return
-		}
+	groupID, ok := userUsageGroupID(c)
+	if !ok {
+		return
 	}
-	days := 7
-	if v := strings.TrimSpace(c.Query("days")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			days = n
-		}
-	}
+	days, _ := strconv.Atoi(c.Query("days"))
 	page, pageSize := response.ParsePagination(c)
 	rows, err := h.logService.RankGroupUsage(c.Request.Context(), groupID, days, page, pageSize)
 	if err != nil {
@@ -119,6 +110,36 @@ func (h *UserMessageLogHandler) ListUsageRanking(c *gin.Context) {
 		return
 	}
 	response.Success(c, rows)
+}
+
+func userUsageGroupID(c *gin.Context) (int64, bool) {
+	var groupID int64
+	if raw := strings.TrimSpace(c.Query("group_id")); raw != "" {
+		var err error
+		groupID, err = strconv.ParseInt(raw, 10, 64)
+		if err != nil || groupID <= 0 {
+			response.BadRequest(c, "Invalid group_id")
+			return 0, false
+		}
+	}
+	return groupID, true
+}
+
+// ExportUsageRanking 导出当前分组和时段的全部用户用量，不受页面大小限制。
+func (h *UserMessageLogHandler) ExportUsageRanking(c *gin.Context) {
+	groupID, ok := userUsageGroupID(c)
+	if !ok {
+		return
+	}
+	days, _ := strconv.Atoi(c.Query("days"))
+	data, filename, err := h.logService.ExportGroupUsage(c.Request.Context(), groupID, days)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
+	c.Header("Cache-Control", "no-store")
+	c.Data(200, "text/csv; charset=utf-8", data)
 }
 
 // ListViewers 授权清单。

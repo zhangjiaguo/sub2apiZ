@@ -44,6 +44,11 @@ export default {
       allUsersHint: '按费用排序，包含当前时段用量为 0 的用户。',
       groupUsersHint: '展示当前分组在所选时段有用量的用户。',
       loadFailed: '加载用户用量失败，请重试。',
+      exportReport: '一键导出报表',
+      exportHint: '按当前分组和时段导出全部用户，包含合计，CSV 可用 Excel 打开。',
+      exporting: '正在导出…',
+      exportFailed: '导出失败，请重试。',
+      exportReady: '完整报表已生成，包含当前筛选的全部分页数据。',
     },
     detail: {
       title: '消息全文',

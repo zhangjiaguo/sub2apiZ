@@ -5,9 +5,11 @@ import UserMessagesView from '../UserMessagesView.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
 
-const { listUserMessageLogs, groupUsageRanking, myViewerGroups, listUserMessageViewers, getGroups } = vi.hoisted(() => ({
+const { listUserMessageLogs, groupUsageRanking, exportGroupUsageReport, saveAs, myViewerGroups, listUserMessageViewers, getGroups } = vi.hoisted(() => ({
   listUserMessageLogs: vi.fn(),
   groupUsageRanking: vi.fn(),
+  exportGroupUsageReport: vi.fn(),
+  saveAs: vi.fn(),
   myViewerGroups: vi.fn(),
   listUserMessageViewers: vi.fn(),
   getGroups: vi.fn(),
@@ -19,11 +21,14 @@ vi.mock('@/api/admin', () => ({
   },
   listUserMessageLogs,
   groupUsageRanking,
+  exportGroupUsageReport,
   myViewerGroups,
   listUserMessageViewers,
   grantUserMessageViewer: vi.fn(),
   revokeUserMessageViewer: vi.fn(),
 }))
+
+vi.mock('file-saver', () => ({ saveAs }))
 
 vi.mock('@/api/client', () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
@@ -187,6 +192,35 @@ describe('UserMessagesView pagination', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('当前分组用户')
     expect(wrapper.findComponent(Pagination).props('total')).toBe(1)
+    wrapper.unmount()
+  })
+
+  it('在第二页一键导出全部筛选结果，不改变当前分页', async () => {
+    const row = { user_id: 21, username: '用户21', user_email: '', requests: 0, input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, total_cost: 0 }
+    groupUsageRanking.mockResolvedValue({ items: [row], total: 92, page: 1, page_size: 20, pages: 5 })
+    const report = { blob: new Blob(['完整报表']), filename: '用户用量_全部分组_近7天.csv' }
+    exportGroupUsageReport.mockResolvedValue(report)
+    const wrapper = mount(UserMessagesView, { global: { stubs: {
+      AppLayout: { template: '<div><slot /></div>' },
+      TablePageLayout: { template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
+      teleport: true,
+    } } })
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'admin.userMessages.tabs.usage')!.trigger('click')
+    await flushPromises()
+    groupUsageRanking.mockResolvedValue({ items: [row], total: 92, page: 2, page_size: 20, pages: 5 })
+    wrapper.findComponent(Pagination).vm.$emit('update:page', 2)
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'admin.userMessages.ranking.exportReport')!.trigger('click')
+    await flushPromises()
+    expect(exportGroupUsageReport).toHaveBeenCalledWith(null, 7, false)
+    expect(saveAs).toHaveBeenCalledWith(report.blob, report.filename)
+    expect(wrapper.findComponent(Pagination).props('page')).toBe(2)
+    exportGroupUsageReport.mockRejectedValue(new Error('连接失败'))
+    await wrapper.findAll('button').find(button => button.text() === 'admin.userMessages.ranking.exportReport')!.trigger('click')
+    await flushPromises()
+    expect(saveAs).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('admin.userMessages.ranking.exportFailed')
     wrapper.unmount()
   })
 })

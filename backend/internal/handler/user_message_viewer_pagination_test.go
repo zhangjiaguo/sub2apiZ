@@ -26,6 +26,41 @@ func (r *usageViewerPaginationRepo) RankGroupUsage(_ context.Context, groupID in
 	return &service.GroupUsageRankingList{Items: []*service.GroupUsageRanking{}, GroupID: groupID, Page: page, PageSize: pageSize, Pages: 1}, nil
 }
 
+func (r *usageViewerPaginationRepo) ListGroupUsage(_ context.Context, _ int64, _ time.Time) ([]*service.GroupUsageRanking, error) {
+	r.called = true
+	return []*service.GroupUsageRanking{{UserID: 42, Requests: 1}}, nil
+}
+
+func TestViewerUsageExportKeepsGroupAuthorization(t *testing.T) {
+	for _, tc := range []struct {
+		query  string
+		status int
+		called bool
+	}{
+		{"?days=7", 400, false},
+		{"?group_id=57", 403, false},
+		{"?group_id=20", 200, true},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			repo := &usageViewerPaginationRepo{}
+			h := NewUserMessageViewerHandler(service.ProvideUserMessageLogService(nil, repo))
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest("GET", "/api/v1/user-message-logs/usage-summary/export"+tc.query, nil)
+			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 42})
+			h.ExportUsageRanking(c)
+			require.Equal(t, tc.status, recorder.Code)
+			require.Equal(t, tc.called, repo.called)
+			if tc.called {
+				require.Equal(t, "text/csv; charset=utf-8", recorder.Header().Get("Content-Type"))
+				require.Contains(t, recorder.Header().Get("Content-Disposition"), "attachment")
+				require.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+				require.Contains(t, recorder.Body.String(), "合计（1人）")
+			}
+		})
+	}
+}
+
 func TestViewerUsagePaginationKeepsGroupAuthorization(t *testing.T) {
 	for _, tc := range []struct {
 		query  string

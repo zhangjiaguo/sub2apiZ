@@ -131,6 +131,7 @@ export {
   getUserMessageLog,
   myViewerGroups,
   groupUsageRanking,
+  exportGroupUsageReport,
   listUserMessageViewers,
   grantUserMessageViewer,
   revokeUserMessageViewer,

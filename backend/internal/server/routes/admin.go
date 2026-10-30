@@ -956,6 +956,7 @@ func registerUserMessageLogRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	messageLogs := admin.Group("/user-message-logs")
 	{
 		messageLogs.GET("/usage-summary", h.Admin.UserMessageLog.ListUsageRanking)
+		messageLogs.GET("/usage-summary/export", h.Admin.UserMessageLog.ExportUsageRanking)
 		messageLogs.GET("/viewers", h.Admin.UserMessageLog.ListViewers)
 		messageLogs.POST("/viewers", h.Admin.UserMessageLog.GrantViewer)
 		messageLogs.DELETE("/viewers/:id", h.Admin.UserMessageLog.RevokeViewer)

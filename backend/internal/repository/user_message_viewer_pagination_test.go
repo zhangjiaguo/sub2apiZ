@@ -68,3 +68,21 @@ func TestUserUsageRankingEmptyPage(t *testing.T) {
 	require.Empty(t, result.Items)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestUserUsageExportHasNoPaginationLimit(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	since := time.Now()
+	rows := sqlmock.NewRows([]string{"id", "username", "email", "requests", "input", "output", "cache", "cost"})
+	for id := int64(1); id <= 125; id++ {
+		rows.AddRow(id, "用户", "", 0, 0, 0, 0, 0)
+	}
+	mock.ExpectQuery(`(?s)WITH usage AS.*l.group_id = \$2.*usage.user_id IS NOT NULL.*ORDER BY coalesce\(usage.total_cost,0\) DESC, u.id ASC\s*$`).
+		WithArgs(since, int64(20)).WillReturnRows(rows)
+	result, err := NewUserMessageViewerRepository(db).ListGroupUsage(context.Background(), 20, since)
+	require.NoError(t, err)
+	require.Len(t, result, 125)
+	require.Equal(t, int64(125), result[124].UserID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

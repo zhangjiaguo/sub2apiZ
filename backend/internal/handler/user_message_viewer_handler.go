@@ -5,6 +5,7 @@ package handler
 
 import (
 	"errors"
+	"mime"
 	"strconv"
 	"strings"
 
@@ -127,19 +128,34 @@ func (h *UserMessageViewerHandler) Get(c *gin.Context) {
 // UsageRanking 查看者视角分组用量排行（分组必须在授权集合内）。
 // GET /api/v1/user-message-logs/usage-summary?group_id=&days=
 func (h *UserMessageViewerHandler) UsageRanking(c *gin.Context) {
-	userID, ok := h.subjectUserID(c)
+	groupID, ok := h.usageRankingGroup(c)
 	if !ok {
 		return
+	}
+	days, _ := strconv.Atoi(c.Query("days"))
+	page, pageSize := response.ParsePagination(c)
+	rows, err := h.logService.RankGroupUsage(c.Request.Context(), groupID, days, page, pageSize)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, rows)
+}
+
+func (h *UserMessageViewerHandler) usageRankingGroup(c *gin.Context) (int64, bool) {
+	userID, ok := h.subjectUserID(c)
+	if !ok {
+		return 0, false
 	}
 	groupID, err := strconv.ParseInt(c.Query("group_id"), 10, 64)
 	if err != nil || groupID <= 0 {
 		response.BadRequest(c, "Invalid group_id")
-		return
+		return 0, false
 	}
 	allowed, err := h.logService.ViewerGroups(c.Request.Context(), userID)
 	if err != nil {
 		response.InternalError(c, err.Error())
-		return
+		return 0, false
 	}
 	authorized := false
 	for _, gid := range allowed {
@@ -150,19 +166,24 @@ func (h *UserMessageViewerHandler) UsageRanking(c *gin.Context) {
 	}
 	if !authorized {
 		response.Forbidden(c, "未授权查看该分组")
+		return 0, false
+	}
+	return groupID, true
+}
+
+// ExportUsageRanking 与分页查询使用同一个授权检查。
+func (h *UserMessageViewerHandler) ExportUsageRanking(c *gin.Context) {
+	groupID, ok := h.usageRankingGroup(c)
+	if !ok {
 		return
 	}
-	days := 7
-	if v := strings.TrimSpace(c.Query("days")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			days = n
-		}
-	}
-	page, pageSize := response.ParsePagination(c)
-	rows, err := h.logService.RankGroupUsage(c.Request.Context(), groupID, days, page, pageSize)
+	days, _ := strconv.Atoi(c.Query("days"))
+	data, filename, err := h.logService.ExportGroupUsage(c.Request.Context(), groupID, days)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}
-	response.Success(c, rows)
+	c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
+	c.Header("Cache-Control", "no-store")
+	c.Data(200, "text/csv; charset=utf-8", data)
 }

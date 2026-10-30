@@ -91,7 +91,7 @@
             <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
               {{ activeRankGroupName }}
             </h3>
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
               <div class="w-48">
                 <Select v-model="filters.group_id" :options="groupOptions" @change="onRankingFiltersChange" />
               </div>
@@ -99,10 +99,26 @@
               <div class="w-24">
                 <Select v-model="rankDays" :options="daysOptions" @change="onRankingFiltersChange" />
               </div>
+              <button
+                type="button"
+                class="btn btn-primary inline-flex items-center gap-2"
+                :disabled="rankExporting || rankLoading || !rankAvailable || rankTotal === 0"
+                :title="t('admin.userMessages.ranking.exportHint')"
+                @click="exportRanking"
+              >
+                <Icon name="download" size="sm" />
+                {{ t(rankExporting ? 'admin.userMessages.ranking.exporting' : 'admin.userMessages.ranking.exportReport') }}
+              </button>
             </div>
           </div>
           <p v-if="rankAvailable" class="mb-3 shrink-0 text-xs text-gray-400">
             {{ t(isAdmin && activeRankGroup === null ? 'admin.userMessages.ranking.allUsersHint' : 'admin.userMessages.ranking.groupUsersHint') }}
+          </p>
+          <p v-if="rankExportError" class="mb-3 shrink-0 text-xs text-red-500" role="alert">
+            {{ t('admin.userMessages.ranking.exportFailed') }}
+          </p>
+          <p v-else-if="rankExported" class="mb-3 shrink-0 text-xs text-primary-600" role="status">
+            {{ t('admin.userMessages.ranking.exportReady') }}
           </p>
           <div v-if="!rankAvailable" class="py-10 text-center text-sm text-gray-400">
             {{ t('admin.userMessages.ranking.pickFirst') }}
@@ -332,10 +348,12 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { saveAs } from 'file-saver'
 import {
   getUserMessageLog,
   grantUserMessageViewer,
   groupUsageRanking,
+  exportGroupUsageReport,
   listUserMessageLogs,
   listUserMessageViewers,
   myViewerGroups,
@@ -392,6 +410,9 @@ const rankPageSize = ref(20)
 const rankTotal = ref(0)
 const rankLoading = ref(false)
 const rankError = ref(false)
+const rankExporting = ref(false)
+const rankExportError = ref(false)
+const rankExported = ref(false)
 let rankRequestSequence = 0
 const rankDays = ref('7')
 const daysOptions = [
@@ -564,6 +585,26 @@ function onRankPageSizeChange(next: number) {
   rankPageSize.value = next
   rankPage.value = 1
   fetchRanking()
+}
+
+async function exportRanking() {
+  if (rankExporting.value || !rankAvailable.value) return
+  // 固定点击时的筛选；导出不改变当前页，也不受当前每页数量限制。
+  const groupId = activeRankGroup.value
+  const days = Number(rankDays.value) || 7
+  const viewer = !isAdmin.value
+  rankExporting.value = true
+  rankExportError.value = false
+  rankExported.value = false
+  try {
+    const report = await exportGroupUsageReport(groupId, days, viewer)
+    saveAs(report.blob, report.filename)
+    rankExported.value = true
+  } catch {
+    rankExportError.value = true
+  } finally {
+    rankExporting.value = false
+  }
 }
 
 async function openDetail(id: number) {
