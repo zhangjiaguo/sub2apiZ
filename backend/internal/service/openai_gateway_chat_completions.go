@@ -413,6 +413,19 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 			)
 			return s.forwardAsRawChatCompletionsWithStartTime(ctx, c, account, body, defaultMappedModel, startTime)
 		}
+		// 聚合上游的账号级探测不能代表每个模型；仅在明确拒绝本次 Responses
+		// 协议时恢复客户端原始 Chat 请求，不修改账号探测状态或手动覆盖模式。
+		if account.IsOpenAIApiKey() && account.IsOpenAIPassthroughEnabled() &&
+			openai_compat.NormalizeResponsesSupportMode(responsesMode) == openai_compat.ResponsesSupportModeAuto &&
+			!isResponsesShape &&
+			(ctx == nil || ctx.Err() == nil) &&
+			(c.Request == nil || c.Request.Context().Err() == nil) &&
+			!IsResponseCommitted(c) && !c.Writer.Written() && completeErrorBody &&
+			isConvertedResponsesProtocolRejection(resp.StatusCode, respBody) {
+			logger.L().Info("聚合上游拒绝 Responses 协议，回退原始 Chat Completions 请求",
+				zap.Int64("account_id", account.ID), zap.Int("upstream_status", resp.StatusCode))
+			return s.forwardAsRawChatCompletionsWithStartTime(ctx, c, account, body, defaultMappedModel, startTime)
+		}
 		if foErr := s.failoverOpenAIUpstreamHTTPError(ctx, c, account, resp, respBody, upstreamMsg, upstreamModel); foErr != nil {
 			return nil, foErr
 		}
@@ -612,6 +625,45 @@ func isConvertedResponsesInputStringRejection(status int, responseBody []byte) b
 	}
 	message = strings.ToLower(strings.TrimSpace(message))
 	return responsesInvalidInputTypeMessage.MatchString(message)
+}
+
+// isConvertedResponsesProtocolRejection 只接受完整且无歧义的协议拒绝，避免把
+// 认证、余额、策略错误或已经产生用量的响应当成可以安全重放的请求。
+func isConvertedResponsesProtocolRejection(status int, responseBody []byte) bool {
+	if status != http.StatusForbidden || !json.Valid(responseBody) {
+		return false
+	}
+	envelope := gjson.ParseBytes(responseBody)
+	for _, object := range []gjson.Result{envelope, envelope.Get("error")} {
+		if !object.IsObject() {
+			return false
+		}
+		keys := make(map[string]bool)
+		unambiguous := true
+		object.ForEach(func(key, value gjson.Result) bool {
+			name := key.String()
+			if keys[name] {
+				unambiguous = false
+				return false
+			}
+			keys[name] = true
+			switch name {
+			case "usage", "output", "output_text", "choices", "tool_calls", "response", "status", "incomplete_details":
+				unambiguous = false
+			case "code":
+				unambiguous = value.Type == gjson.String && value.String() == "protocol_not_allowed"
+			case "type":
+				unambiguous = value.Type == gjson.String && (value.String() == "permission_error" || value.String() == "error")
+			case "param":
+				unambiguous = value.Type == gjson.Null || (value.Type == gjson.String && value.String() == "")
+			}
+			return unambiguous
+		})
+		if !unambiguous {
+			return false
+		}
+	}
+	return envelope.Get("error.code").String() == "protocol_not_allowed"
 }
 
 func normalizeResponsesRequestServiceTier(req *apicompat.ResponsesRequest) {
