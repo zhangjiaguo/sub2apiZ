@@ -798,6 +798,7 @@ type GatewayService struct {
 	userGroupRateSF       singleflight.Group
 	modelsListCache       *gocache.Cache
 	modelsListCacheTTL    time.Duration
+	openAIModelsDiscovery openAIModelsDiscovery
 	settingService        *SettingService
 	responseHeaderFilter  *responseheaders.CompiledHeaderFilter
 	debugModelRouting     atomic.Bool
@@ -1441,16 +1442,23 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	// Collect unique models from all accounts
 	modelSet := make(map[string]struct{})
 	hasAnyMapping := false
+	fallbackAccounts := make([]Account, 0, len(accounts))
 
 	for _, acc := range accounts {
-		// Passthrough routing accepts models independently of model_mapping, so a
-		// stale mapping on a passthrough account must not narrow the public list.
-		// Treat it like an unmapped account: skip its mapping here and let
-		// supplementUnmappedOpenAIModels contribute the default set. Mappings on
-		// the ordinary accounts in the same group still count.
+		// 透传账号以共享发现缓存中的上游目录为准，不让残留映射或平台默认值
+		// 覆盖真实目录。读取失败的账号仍保留原有默认模型回退。
 		if platform == PlatformOpenAI && acc.IsOpenAIPassthroughEnabled() {
+			if discovered, ok := s.discoverPassthroughModels(ctx, &acc); ok {
+				for _, model := range discovered {
+					modelSet[model] = struct{}{}
+				}
+				hasAnyMapping = true
+				continue
+			}
+			fallbackAccounts = append(fallbackAccounts, acc)
 			continue
 		}
+		fallbackAccounts = append(fallbackAccounts, acc)
 
 		mapping := acc.GetModelMapping()
 		for model := range mapping {
@@ -1465,7 +1473,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		}
 	}
 
-	// If no account has model_mapping, return nil (use default)
+	// 没有账号映射或成功发现的目录时，保持原有默认模型回退。
 	if !hasAnyMapping && platform == PlatformOpenAI {
 		models := filterRetiredOpenAIModelIDs(accounts, openai.DefaultModelIDs())
 		if len(models) != len(openai.DefaultModels) {
@@ -1488,7 +1496,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	sort.Strings(models)
 
 	if platform == PlatformOpenAI {
-		models = supplementUnmappedOpenAIModels(accounts, models)
+		models = supplementUnmappedOpenAIModels(fallbackAccounts, models)
 		models = filterRetiredOpenAIModelIDs(accounts, models)
 		// nil means "use defaults" to listing callers; an empty filtered catalog
 		// must remain authoritative instead of resurrecting retired defaults.

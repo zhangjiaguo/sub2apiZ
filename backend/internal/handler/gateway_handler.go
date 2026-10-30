@@ -80,6 +80,10 @@ func NewGatewayHandler(
 	cfg *config.Config,
 	settingService *service.SettingService,
 ) *GatewayHandler {
+	// 公开模型列表与账号测试共用上游发现缓存，启动时完成服务关联。
+	if gatewayService != nil {
+		gatewayService.SetOpenAIGatewayService(openAIGatewayService)
+	}
 	pingInterval := time.Duration(0)
 	maxAccountSwitches := 10
 	maxAccountSwitchesGemini := 3
