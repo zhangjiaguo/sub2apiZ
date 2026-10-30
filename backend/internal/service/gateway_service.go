@@ -1476,6 +1476,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	// 没有账号映射或成功发现的目录时，保持原有默认模型回退。
 	if !hasAnyMapping && platform == PlatformOpenAI {
 		models := filterRetiredOpenAIModelIDs(accounts, openai.DefaultModelIDs())
+		models = filterAccountSupportedOpenAIModelIDs(accounts, models)
 		if len(models) != len(openai.DefaultModels) {
 			return models
 		}
@@ -1497,6 +1498,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 
 	if platform == PlatformOpenAI {
 		models = supplementUnmappedOpenAIModels(fallbackAccounts, models)
+		models = filterAccountSupportedOpenAIModelIDs(accounts, models)
 		models = filterRetiredOpenAIModelIDs(accounts, models)
 		// nil means "use defaults" to listing callers; an empty filtered catalog
 		// must remain authoritative instead of resurrecting retired defaults.
@@ -1510,6 +1512,21 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		modelsListCacheStoreTotal.Add(1)
 	}
 	return cloneStringSlice(models)
+}
+
+// filterAccountSupportedOpenAIModelIDs 让目录发现、旧映射和默认回退遵守相同路由资格。
+// 尤其不能让一个回退账号把全部账号白名单外的旧型号重新加入公开目录。
+func filterAccountSupportedOpenAIModelIDs(accounts []Account, models []string) []string {
+	filtered := make([]string, 0, len(models))
+	for _, model := range models {
+		for i := range accounts {
+			if accounts[i].IsModelSupported(model) {
+				filtered = append(filtered, model)
+				break
+			}
+		}
+	}
+	return filtered
 }
 
 func (s *GatewayService) resolveCompositeModelOwnership(ctx context.Context, groupID int64, model string) (CompositeModelOwnership, error) {

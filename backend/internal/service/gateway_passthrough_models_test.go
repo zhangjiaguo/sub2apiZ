@@ -106,3 +106,36 @@ func TestPassthroughCatalogueRespectsAccountRoutingWhitelist(t *testing.T) {
 	}}}}, openAIModelsDiscovery: discovery}
 	require.Equal(t, []string{"CC/allowed"}, svc.GetAvailableModels(context.Background(), &groupID, PlatformOpenAI))
 }
+
+// 上游发现失败时，默认目录也必须服从账号的精确路由资格。
+func TestPassthroughCatalogueFallbackRespectsRoutingWhitelist(t *testing.T) {
+	groupID := int64(322)
+	account := Account{ID: 12, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+		Extra: map[string]any{"openai_passthrough": true, "routing_models": []any{"gpt-6.1-sol"}}}
+	svc := &GatewayService{accountRepo: &modelsListAccountRepoStub{byGroup: map[int64][]Account{groupID: {account}}},
+		openAIModelsDiscovery: &gatewayModelsDiscoveryStub{err: errors.New("catalogue unavailable")}}
+	require.Equal(t, []string{"gpt-6.1-sol"}, svc.GetAvailableModels(context.Background(), &groupID, PlatformOpenAI))
+}
+
+// 单个回退账号不能让别的账号不支持的旧型号重新进入合并目录。
+func TestPassthroughCatalogueMixedFallbackRespectsRoutingWhitelist(t *testing.T) {
+	groupID := int64(323)
+	accounts := []Account{
+		{ID: 13, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+			Extra: map[string]any{"openai_passthrough": true, "routing_models": []any{"CC/allowed"}}},
+		{ID: 14, Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+			Extra: map[string]any{"openai_passthrough": true, "routing_models": []any{"gpt-6.1-sol"}}},
+	}
+	svc := &GatewayService{accountRepo: &modelsListAccountRepoStub{byGroup: map[int64][]Account{groupID: accounts}},
+		openAIModelsDiscovery: &gatewayModelsDiscoveryStub{body: gatewayModelsBody(t, "CC/allowed")}}
+	require.Equal(t, []string{"CC/allowed", "gpt-6.1-sol"}, svc.GetAvailableModels(context.Background(), &groupID, PlatformOpenAI))
+}
+
+func TestMappedCatalogueRespectsRoutingWhitelist(t *testing.T) {
+	groupID := int64(324)
+	account := Account{ID: 15, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+		Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5.2": "gpt-5.2", "gpt-6.1-sol": "gpt-6.1-sol"}},
+		Extra:       map[string]any{"routing_models": []any{"gpt-6.1-sol"}}}
+	svc := &GatewayService{accountRepo: &modelsListAccountRepoStub{byGroup: map[int64][]Account{groupID: {account}}}}
+	require.Equal(t, []string{"gpt-6.1-sol"}, svc.GetAvailableModels(context.Background(), &groupID, PlatformOpenAI))
+}
