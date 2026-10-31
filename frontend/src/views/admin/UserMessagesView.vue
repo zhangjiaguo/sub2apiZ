@@ -102,15 +102,28 @@
               <button
                 type="button"
                 class="btn btn-primary inline-flex items-center gap-2"
-                :disabled="rankExporting || rankLoading || !rankAvailable || rankTotal === 0"
+                :disabled="rankExporting !== null || rankLoading || activeRankGroup === null"
                 :title="t('admin.userMessages.ranking.exportHint')"
-                @click="exportRanking"
+                @click="exportRanking('xlsx')"
               >
                 <Icon name="download" size="sm" />
-                {{ t(rankExporting ? 'admin.userMessages.ranking.exporting' : 'admin.userMessages.ranking.exportReport') }}
+                {{ t(rankExporting === 'xlsx' ? 'admin.userMessages.ranking.exporting' : 'admin.userMessages.ranking.exportExcel') }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary inline-flex items-center gap-2"
+                :disabled="rankExporting !== null || rankLoading || activeRankGroup === null"
+                :title="t('admin.userMessages.ranking.exportHTMLHint')"
+                @click="exportRanking('html')"
+              >
+                <Icon name="chart" size="sm" />
+                {{ t(rankExporting === 'html' ? 'admin.userMessages.ranking.exporting' : 'admin.userMessages.ranking.exportHTML') }}
               </button>
             </div>
           </div>
+          <p class="mb-3 shrink-0 text-xs" :class="activeRankGroup === null ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'">
+            {{ t(activeRankGroup === null ? 'admin.userMessages.ranking.exportPickGroup' : 'admin.userMessages.ranking.exportScope') }}
+          </p>
           <p v-if="rankAvailable" class="mb-3 shrink-0 text-xs text-gray-400">
             {{ t(isAdmin && activeRankGroup === null ? 'admin.userMessages.ranking.allUsersHint' : 'admin.userMessages.ranking.groupUsersHint') }}
           </p>
@@ -410,7 +423,7 @@ const rankPageSize = ref(20)
 const rankTotal = ref(0)
 const rankLoading = ref(false)
 const rankError = ref(false)
-const rankExporting = ref(false)
+const rankExporting = ref<'xlsx' | 'html' | null>(null)
 const rankExportError = ref(false)
 const rankExported = ref(false)
 let rankRequestSequence = 0
@@ -587,23 +600,23 @@ function onRankPageSizeChange(next: number) {
   fetchRanking()
 }
 
-async function exportRanking() {
-  if (rankExporting.value || !rankAvailable.value) return
+async function exportRanking(format: 'xlsx' | 'html') {
+  if (rankExporting.value !== null || activeRankGroup.value === null) return
   // 固定点击时的筛选；导出不改变当前页，也不受当前每页数量限制。
   const groupId = activeRankGroup.value
   const days = Number(rankDays.value) || 7
   const viewer = !isAdmin.value
-  rankExporting.value = true
+  rankExporting.value = format
   rankExportError.value = false
   rankExported.value = false
   try {
-    const report = await exportGroupUsageReport(groupId, days, viewer)
+    const report = await exportGroupUsageReport(groupId, days, viewer, format)
     saveAs(report.blob, report.filename)
     rankExported.value = true
   } catch {
     rankExportError.value = true
   } finally {
-    rankExporting.value = false
+    rankExporting.value = null
   }
 }
 

@@ -198,7 +198,7 @@ describe('UserMessagesView pagination', () => {
   it('在第二页一键导出全部筛选结果，不改变当前分页', async () => {
     const row = { user_id: 21, username: '用户21', user_email: '', requests: 0, input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, total_cost: 0 }
     groupUsageRanking.mockResolvedValue({ items: [row], total: 92, page: 1, page_size: 20, pages: 5 })
-    const report = { blob: new Blob(['完整报表']), filename: '用户用量_全部分组_近7天.csv' }
+    const report = { blob: new Blob(['完整报表']), filename: '用户用量_分组20_近7天.xlsx' }
     exportGroupUsageReport.mockResolvedValue(report)
     const wrapper = mount(UserMessagesView, { global: { stubs: {
       AppLayout: { template: '<div><slot /></div>' },
@@ -209,18 +209,49 @@ describe('UserMessagesView pagination', () => {
     await wrapper.findAll('button').find(button => button.text() === 'admin.userMessages.tabs.usage')!.trigger('click')
     await flushPromises()
     groupUsageRanking.mockResolvedValue({ items: [row], total: 92, page: 2, page_size: 20, pages: 5 })
+    const groupSelect = wrapper.findAllComponents(Select).find(select => select.props('options').some((option: { value: string }) => option.value === '20'))!
+    groupSelect.vm.$emit('update:modelValue', '20')
+    groupSelect.vm.$emit('change', '20')
+    await flushPromises()
     wrapper.findComponent(Pagination).vm.$emit('update:page', 2)
     await flushPromises()
-    await wrapper.findAll('button').find(button => button.text() === 'admin.userMessages.ranking.exportReport')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'admin.userMessages.ranking.exportExcel')!.trigger('click')
     await flushPromises()
-    expect(exportGroupUsageReport).toHaveBeenCalledWith(null, 7, false)
+    expect(exportGroupUsageReport).toHaveBeenCalledWith(20, 7, false, 'xlsx')
     expect(saveAs).toHaveBeenCalledWith(report.blob, report.filename)
     expect(wrapper.findComponent(Pagination).props('page')).toBe(2)
     exportGroupUsageReport.mockRejectedValue(new Error('连接失败'))
-    await wrapper.findAll('button').find(button => button.text() === 'admin.userMessages.ranking.exportReport')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'admin.userMessages.ranking.exportExcel')!.trigger('click')
     await flushPromises()
     expect(saveAs).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('admin.userMessages.ranking.exportFailed')
+    wrapper.unmount()
+  })
+
+  it('未选择分组不可导出，选择后没有调用也能导出HTML', async () => {
+    const report = { blob: new Blob(['离线报告']), filename: '分组20.html' }
+    exportGroupUsageReport.mockResolvedValue(report)
+    const wrapper = mount(UserMessagesView, { global: { stubs: {
+      AppLayout: { template: '<div><slot /></div>' },
+      TablePageLayout: { template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
+      teleport: true,
+    } } })
+    await flushPromises()
+    await wrapper.findAll('button').find(b => b.text() === 'admin.userMessages.tabs.usage')!.trigger('click')
+    await flushPromises()
+    const htmlButton = () => wrapper.findAll('button').find(b => b.text() === 'admin.userMessages.ranking.exportHTML')!
+    expect(htmlButton().attributes('disabled')).toBeDefined()
+    await htmlButton().trigger('click')
+    expect(exportGroupUsageReport).not.toHaveBeenCalled()
+    const group = wrapper.findAllComponents(Select).find(s => s.props('options').some((o: { value: string }) => o.value === '20'))!
+    group.vm.$emit('update:modelValue', '20')
+    group.vm.$emit('change', '20')
+    await flushPromises()
+    expect(htmlButton().attributes('disabled')).toBeUndefined()
+    await htmlButton().trigger('click')
+    await flushPromises()
+    expect(exportGroupUsageReport).toHaveBeenCalledWith(20, 7, false, 'html')
+    expect(saveAs).toHaveBeenCalledWith(report.blob, report.filename)
     wrapper.unmount()
   })
 })

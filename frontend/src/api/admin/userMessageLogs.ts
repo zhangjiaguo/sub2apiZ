@@ -97,15 +97,16 @@ export async function groupUsageRanking(
   return data
 }
 
-export async function exportGroupUsageReport(groupId: number | null, days = 7, viewer = false): Promise<{ blob: Blob; filename: string }> {
+export async function exportGroupUsageReport(groupId: number | null, days = 7, viewer = false, format: 'csv' | 'xlsx' | 'html' = 'csv'): Promise<{ blob: Blob; filename: string }> {
+  if (groupId === null || !Number.isSafeInteger(groupId) || groupId <= 0) throw new Error('请先选择一个具体分组')
   const { data, headers } = await apiClient.get<Blob>(`${viewer ? VIEWER_BASE : ADMIN_BASE}/usage-summary/export`, {
-    params: { ...(groupId === null ? {} : { group_id: groupId }), days },
+    params: { group_id: groupId, days, format },
     responseType: 'blob',
   })
   const disposition = String(headers['content-disposition'] ?? '')
   const encoded = /filename\*=utf-8''([^;]+)/i.exec(disposition)
   const plain = /filename="([^"]+)"/i.exec(disposition)
-  let filename = `用户用量_${groupId === null ? '全部分组' : `分组${groupId}`}_近${days}天.csv`
+  let filename = `用户用量_分组${groupId}_近${days}天.${format}`
   try {
     filename = encoded ? decodeURIComponent(encoded[1]) : plain?.[1] || filename
   } catch {

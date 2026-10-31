@@ -301,6 +301,7 @@ type UserMessageViewerRepository interface {
 	Revoke(ctx context.Context, id int64) error
 	RankGroupUsage(ctx context.Context, groupID int64, since time.Time, page, pageSize int) (*GroupUsageRankingList, error)
 	ListGroupUsage(ctx context.Context, groupID int64, since time.Time) ([]*GroupUsageRanking, error)
+	ReadGroupUsageReport(ctx context.Context, groupID int64, from, to time.Time) (*GroupUsageReport, error)
 	GroupNames(ctx context.Context, ids []int64) ([]*ViewerGroupInfo, error)
 }
 

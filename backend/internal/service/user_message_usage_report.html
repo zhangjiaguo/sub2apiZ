@@ -1,0 +1,1371 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; connect-src 'none'"
+    />
+    <title>{{ .Group }} · 用户用量报告</title>
+    <style>
+      :root {
+        --brand: #14b8a6;
+        --brand-dark: #0f766e;
+        --ink: #172b35;
+        --muted: #667985;
+        --line: #e5eeec;
+        --blue: #3b82f6;
+        --amber: #f59e0b;
+        --violet: #8b5cf6;
+        --surface: #fff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background:
+          radial-gradient(ellipse at 16% 0%, #e0f5f0 0, transparent 45%),
+          #f5f9f8;
+        color: var(--ink);
+        font:
+          14px/1.6 system-ui,
+          -apple-system,
+          "Segoe UI",
+          "Microsoft YaHei",
+          sans-serif;
+        font-variant-numeric: tabular-nums;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button,
+      select {
+        cursor: pointer;
+      }
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible {
+        outline: 3px solid #99f6e4;
+        outline-offset: 3px;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      button {
+        color: inherit;
+      }
+      main {
+        max-width: 1376px;
+        margin: auto;
+        padding: 38px 36px 28px;
+      }
+      .masthead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        color: var(--brand-dark);
+        letter-spacing: 0.05em;
+      }
+      .mark {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        background: var(--brand-dark);
+        display: grid;
+        grid-template-columns: repeat(2, 6px);
+        grid-template-rows: repeat(2, 6px);
+        place-content: center;
+        gap: 3px;
+      }
+      .mark i {
+        background: white;
+        border-radius: 1px;
+      }
+      .snapshot {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .heading {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin: 28px 0 24px;
+      }
+      h1 {
+        font-size: 32px;
+        line-height: 1.3;
+        letter-spacing: -0.8px;
+        margin: 0 0 10px;
+      }
+      h2 {
+        font-size: 15px;
+        margin: 0;
+        font-weight: 650;
+      }
+      p {
+        margin: 0;
+      }
+      .subtitle {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .scope {
+        min-width: 280px;
+        max-width: 380px;
+        flex: 0 1 380px;
+      }
+      .scope label {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 7px;
+      }
+      select,
+      input {
+        border: 1px solid #d6e4e0;
+        border-radius: 9px;
+        background: #fff;
+        color: var(--ink);
+        padding: 10px 12px;
+        min-width: 0;
+      }
+      .scope select {
+        width: 100%;
+      }
+      .scope-note {
+        margin-top: 7px;
+        font-size: 12px;
+        color: var(--brand-dark);
+      }
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 18px;
+        margin-bottom: 22px;
+      }
+      .metric {
+        padding: 21px 23px;
+        border: 1px solid var(--line);
+        border-radius: 15px;
+        background: white;
+        box-shadow: 0 2px 4px #142d2303;
+      }
+      .metric .label {
+        color: var(--muted);
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex: none;
+      }
+      .metric strong {
+        display: block;
+        margin: 11px 0 4px;
+        font-size: 29px;
+        line-height: 1.25;
+        font-weight: 700;
+        letter-spacing: -0.6px;
+        overflow-wrap: anywhere;
+      }
+      .metric small {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+        gap: 22px;
+        margin-bottom: 22px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: 0 3px 7px #142d2303;
+        padding: 24px;
+        min-width: 0;
+      }
+      .card-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 20px;
+      }
+      .card-note {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .legend {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 12px;
+      }
+      .legend span {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .trend {
+        width: 100%;
+        height: auto;
+        display: block;
+        overflow: visible;
+      }
+      .donut-layout {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        min-height: 245px;
+      }
+      .donut-wrap {
+        width: 185px;
+        height: 185px;
+        flex: 0 0 185px;
+        position: relative;
+      }
+      .donut-wrap svg {
+        width: 100%;
+        height: 100%;
+      }
+      .donut-label {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+      }
+      .donut-label b {
+        font-size: 24px;
+      }
+      .donut-label span {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .model-legend {
+        flex: 1;
+        min-width: 0;
+        display: grid;
+        gap: 11px;
+      }
+      .model-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+      }
+      .model-name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .model-share {
+        font-weight: 650;
+        color: var(--ink);
+      }
+      .segments {
+        display: flex;
+        padding: 3px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #f5f9f8;
+        gap: 2px;
+      }
+      .segments button {
+        border: 0;
+        border-radius: 5px;
+        padding: 5px 10px;
+        font-size: 11px;
+        background: transparent;
+        white-space: nowrap;
+        color: var(--muted);
+      }
+      .segments button[aria-pressed="true"] {
+        background: white;
+        color: var(--brand-dark);
+        box-shadow: 0 1px 4px #183c3114;
+      }
+      .ranking {
+        display: grid;
+        gap: 13px;
+      }
+      .bar-row {
+        display: grid;
+        grid-template-columns: 23px minmax(95px, 155px) minmax(
+            20px,
+            1fr
+          ) minmax(60px, 95px);
+        gap: 10px;
+        align-items: center;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        width: 100%;
+        text-align: left;
+        padding: 2px 0;
+      }
+      .bar-row:hover .bar-name {
+        color: var(--brand-dark);
+      }
+      .rank-no {
+        font-size: 11px;
+        color: #94a6a2;
+      }
+      .bar-name {
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .track {
+        height: 10px;
+        background: #eff5f3;
+        border-radius: 5px;
+        overflow: hidden;
+      }
+      .bar-fill {
+        display: block;
+        height: 100%;
+        border-radius: 5px;
+        background: var(--brand);
+      }
+      .bar-number {
+        text-align: right;
+        font-size: 11px;
+      }
+      .foot-note {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 18px;
+      }
+      .table-card {
+        margin-bottom: 20px;
+      }
+      .table-controls {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .table-controls input {
+        width: 240px;
+        padding: 8px 10px;
+        font-size: 12px;
+      }
+      .table-wrap {
+        overflow: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      th {
+        font-size: 11px;
+        color: var(--muted);
+        text-align: right;
+        font-weight: 500;
+        padding: 11px 14px;
+        border-bottom: 1px solid var(--line);
+        background: #f7faf9;
+      }
+      td {
+        padding: 14px;
+        border-bottom: 1px solid #f0f4f3;
+        text-align: right;
+      }
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+      td:first-child {
+        min-width: 155px;
+      }
+      th button {
+        border: 0;
+        background: none;
+        color: inherit;
+        padding: 0;
+        font-size: inherit;
+      }
+      td button {
+        border: 0;
+        background: none;
+        color: var(--ink);
+        font-weight: 600;
+        padding: 0;
+        text-align: left;
+      }
+      td button:hover {
+        color: var(--brand-dark);
+      }
+      .email {
+        font-size: 11px;
+        color: #85968f;
+        max-width: 210px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .pagination button {
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: white;
+        padding: 5px 12px;
+        margin-left: 7px;
+      }
+      .empty {
+        padding: 70px 15px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        border-top: 1px solid var(--line);
+        padding-top: 18px;
+        color: #82928d;
+        font-size: 11px;
+      }
+      .model-table {
+        max-height: 340px;
+        overflow: auto;
+      }
+      .model-table td {
+        padding: 10px 8px;
+      }
+      .model-table td:first-child {
+        max-width: 210px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .status-chip {
+        color: var(--brand-dark);
+        background: #e7f7f1;
+        border-radius: 5px;
+        font-size: 10px;
+        padding: 2px 6px;
+      }
+      .section-meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      @media (max-width: 1040px) {
+        main {
+          padding: 25px;
+        }
+        .metrics {
+          gap: 12px;
+        }
+        .metric {
+          padding: 18px;
+        }
+        .metric strong {
+          font-size: 25px;
+        }
+        .donut-layout {
+          flex-direction: column;
+          gap: 10px;
+        }
+        .model-legend {
+          width: 100%;
+        }
+        .donut-wrap {
+          width: 145px;
+          height: 145px;
+          flex-basis: 145px;
+        }
+        .bar-row {
+          grid-template-columns: 20px minmax(90px, 120px) minmax(
+              20px,
+              1fr
+            ) 75px;
+        }
+      }
+      @media (max-width: 720px) {
+        main {
+          padding: 20px 15px;
+        }
+        .heading {
+          align-items: stretch;
+          flex-direction: column;
+          margin-top: 23px;
+          gap: 18px;
+        }
+        h1 {
+          font-size: 26px;
+        }
+        .scope {
+          min-width: 0;
+          max-width: none;
+          flex: auto;
+        }
+        .metrics {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .metric strong {
+          font-size: 25px;
+        }
+        .grid {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 16px;
+        }
+        .card {
+          padding: 19px;
+        }
+        .card-head {
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        .donut-layout {
+          flex-direction: row;
+        }
+        .donut-wrap {
+          width: 150px;
+          height: 150px;
+          flex-basis: 150px;
+        }
+        .table-controls {
+          width: 100%;
+        }
+        .table-controls input {
+          width: 100%;
+        }
+        .snapshot {
+          font-size: 10px;
+        }
+        .legend {
+          gap: 10px;
+        }
+        .bar-row {
+          grid-template-columns: 19px 95px minmax(20px, 1fr) 74px;
+        }
+        footer {
+          flex-direction: column;
+          gap: 5px;
+        }
+        .subtitle {
+          overflow-wrap: anywhere;
+        }
+        .pagination {
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          scroll-behavior: auto !important;
+        }
+      }
+      @media print {
+        body {
+          background: white;
+        }
+        main {
+          padding: 0;
+          max-width: none;
+        }
+        .card,
+        .metric {
+          box-shadow: none;
+          break-inside: avoid;
+        }
+        .scope,
+        .segments,
+        .table-controls,
+        .pagination button {
+          display: none;
+        }
+        .grid {
+          gap: 12px;
+        }
+        .table-wrap,
+        .model-table {
+          overflow: visible;
+          max-height: none;
+        }
+        .table-card {
+          break-inside: auto;
+        }
+        .snapshot {
+          color: #666;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="masthead">
+        <div class="brand">
+          <span class="mark" aria-hidden="true"
+            ><i></i><i></i><i></i><i></i></span
+          >幻方有序
+        </div>
+        <div class="snapshot" id="exported-at"></div>
+      </div>
+      <header class="heading">
+        <div>
+          <h1 id="report-title"></h1>
+          <p class="subtitle" id="period"></p>
+        </div>
+        <div class="scope">
+          <label for="user-scope">查看范围</label
+          ><select id="user-scope" aria-label="选择查看用户"></select>
+          <p class="scope-note" id="scope-note"></p>
+        </div>
+      </header>
+      <section class="metrics" aria-label="用量概览">
+        <div class="metric">
+          <div class="label">
+            <i class="dot" style="background: var(--blue)"></i>请求数
+          </div>
+          <strong id="metric-requests"></strong><small>所选分组内的调用</small>
+        </div>
+        <div class="metric">
+          <div class="label">
+            <i class="dot" style="background: var(--brand)"></i>总 Token
+          </div>
+          <strong id="metric-tokens"></strong
+          ><small>含输入、输出及缓存读写</small>
+        </div>
+        <div class="metric">
+          <div class="label">
+            <i class="dot" style="background: var(--violet)"></i>活跃用户
+          </div>
+          <strong id="metric-users"></strong><small id="members-label"></small>
+        </div>
+        <div class="metric">
+          <div class="label">
+            <i class="dot" style="background: var(--amber)"></i>实际消费 (USD)
+          </div>
+          <strong id="metric-cost"></strong><small id="standard-cost"></small>
+        </div>
+      </section>
+      <div class="grid">
+        <section class="card">
+          <div class="card-head">
+            <h2>Token 使用趋势</h2>
+            <span class="card-note">按北京时间汇总</span>
+          </div>
+          <div class="legend" id="trend-legend"></div>
+          <div id="trend"></div>
+        </section>
+        <section class="card">
+          <div class="card-head">
+            <h2>模型使用占比</h2>
+            <span class="card-note">按总 Token</span>
+          </div>
+          <div id="model-donut"></div>
+        </section>
+      </div>
+      <div class="grid">
+        <section class="card">
+          <div class="card-head">
+            <div class="section-meta">
+              <h2>用户用量排行</h2>
+              <span class="status-chip">全组</span>
+            </div>
+            <div class="segments" aria-label="排行指标">
+              <button
+                type="button"
+                data-metric="total_tokens"
+                aria-pressed="true"
+              >
+                Token</button
+              ><button
+                type="button"
+                data-metric="requests"
+                aria-pressed="false"
+              >
+                请求</button
+              ><button
+                type="button"
+                data-metric="actual_cost"
+                aria-pressed="false"
+              >
+                消费
+              </button>
+            </div>
+          </div>
+          <div class="ranking" id="ranking"></div>
+          <p class="foot-note" id="rank-note"></p>
+        </section>
+        <section class="card">
+          <div class="card-head">
+            <h2>模型明细</h2>
+            <span class="card-note" id="model-count"></span>
+          </div>
+          <div class="model-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>模型</th>
+                  <th>请求</th>
+                  <th>Token</th>
+                  <th>实际消费</th>
+                </tr>
+              </thead>
+              <tbody id="model-rows"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+      <section class="card table-card">
+        <div class="card-head">
+          <div class="section-meta">
+            <h2>用户明细</h2>
+            <span class="card-note" id="table-count"></span>
+          </div>
+          <div class="table-controls">
+            <input
+              id="user-search"
+              type="search"
+              placeholder="搜索用户名、邮箱或 ID"
+              aria-label="搜索用户"
+            />
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>用户</th>
+                <th>
+                  <button type="button" data-sort="requests">请求数 ↕</button>
+                </th>
+                <th>
+                  <button type="button" data-sort="total_tokens">
+                    总 Token ↕
+                  </button>
+                </th>
+                <th>输入</th>
+                <th>输出</th>
+                <th>缓存读取</th>
+                <th>缓存创建</th>
+                <th>
+                  <button type="button" data-sort="actual_cost">
+                    实际消费 (USD) ↕
+                  </button>
+                </th>
+                <th>标准费用 (USD)</th>
+              </tr>
+            </thead>
+            <tbody id="user-rows"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span id="page-label"></span>
+          <div>
+            <button type="button" id="prev-page">上一页</button
+            ><button type="button" id="next-page">下一页</button>
+          </div>
+        </div>
+      </section>
+      <footer>
+        <span id="report-footer"></span
+        ><span>统计快照 · 离线可查看，重新导出获取新数据</span>
+      </footer>
+    </main>
+    <script id="report-data" type="application/json">
+      {{ .Data }}
+    </script>
+    <script>
+      "use strict";
+      (() => {
+        const report = JSON.parse(
+          document.getElementById("report-data").textContent,
+        );
+        const $ = (id) => document.getElementById(id),
+          ns = "http://www.w3.org/2000/svg";
+        const colors = [
+          "#14b8a6",
+          "#3b82f6",
+          "#8b5cf6",
+          "#f59e0b",
+          "#ec4899",
+          "#06b6d4",
+          "#94a3b8",
+        ];
+        const tokenSeries = [
+          ["input_tokens", "输入", "#3b82f6"],
+          ["output_tokens", "输出", "#14b8a6"],
+          ["cache_write_tokens", "缓存创建", "#f59e0b"],
+          ["cache_read_tokens", "缓存读取", "#8b5cf6"],
+        ];
+        const fields = [
+          "requests",
+          "input_tokens",
+          "output_tokens",
+          "cache_read_tokens",
+          "cache_write_tokens",
+          "total_tokens",
+          "actual_cost",
+          "standard_cost",
+        ];
+        const state = {
+          user: null,
+          metric: "total_tokens",
+          sort: "actual_cost",
+          direction: -1,
+          page: 1,
+          search: "",
+        };
+        const num = (n) =>
+          new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(
+            n || 0,
+          );
+        const compact = (n) =>
+          Math.abs(n) >= 1e9
+            ? (n / 1e9).toFixed(2) + "B"
+            : Math.abs(n) >= 1e6
+              ? (n / 1e6).toFixed(2) + "M"
+              : Math.abs(n) >= 1e3
+                ? (n / 1e3).toFixed(2) + "K"
+                : num(n);
+        const money = (n) =>
+          "$" +
+          new Intl.NumberFormat("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 8,
+          }).format(n || 0);
+        const time = (s) =>
+          new Intl.DateTimeFormat("zh-CN", {
+            timeZone: "Asia/Shanghai",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }).format(new Date(s));
+        const label = (u) =>
+          (u.username || u.user_email || "用户") + " (#" + u.user_id + ")";
+        const node = (tag, cls, text) => {
+          const e = document.createElement(tag);
+          if (cls) e.className = cls;
+          if (text !== undefined) e.textContent = text;
+          return e;
+        };
+        const svg = (tag, attrs, text) => {
+          const e = document.createElementNS(ns, tag);
+          Object.entries(attrs || {}).forEach(([k, v]) =>
+            e.setAttribute(k, String(v)),
+          );
+          if (text !== undefined) e.textContent = text;
+          return e;
+        };
+        const empty = (el, text) =>
+          el.replaceChildren(node("div", "empty", text));
+        function total(rows) {
+          const out = Object.fromEntries(fields.map((f) => [f, 0]));
+          rows.forEach((r) =>
+            fields.forEach((f) => (out[f] += Number(r[f] || 0))),
+          );
+          return out;
+        }
+        function pick(rows) {
+          return state.user === null
+            ? rows
+            : rows.filter((r) => r.user_id === state.user);
+        }
+        function setUser(id) {
+          state.user = id;
+          state.page = 1;
+          $("user-scope").value = id === null ? "all" : String(id);
+          render();
+        }
+        function dailyRows() {
+          const map = new Map();
+          const start = report.start_time.slice(0, 10),
+            end = report.end_time.slice(0, 10);
+          for (
+            let d = new Date(start + "T00:00:00+08:00");
+            ;
+            d.setUTCDate(d.getUTCDate() + 1)
+          ) {
+            const key = new Date(d.getTime() + 8 * 3600000)
+              .toISOString()
+              .slice(0, 10);
+            if (key > end) break;
+            map.set(key, { date: key, ...total([]) });
+          }
+          pick(report.daily).forEach((r) => {
+            const row = map.get(r.date);
+            if (row) fields.forEach((f) => (row[f] += Number(r[f] || 0)));
+          });
+          return [...map.values()];
+        }
+        function models() {
+          const map = new Map();
+          pick(report.models).forEach((r) => {
+            if (!map.has(r.model))
+              map.set(r.model, { model: r.model, ...total([]) });
+            const row = map.get(r.model);
+            fields.forEach((f) => (row[f] += Number(r[f] || 0)));
+          });
+          return [...map.values()].sort(
+            (a, b) =>
+              b.total_tokens - a.total_tokens || a.model.localeCompare(b.model),
+          );
+        }
+        function trend(rows) {
+          const box = $("trend");
+          if (!rows.some((r) => r.requests > 0)) {
+            empty(box, "统计区间内暂无调用");
+            return;
+          }
+          const w = 850,
+            h = 255,
+            left = 62,
+            right = 18,
+            top = 15,
+            bottom = 40,
+            plotW = w - left - right,
+            plotH = h - top - bottom;
+          const max =
+            Math.max(
+              1,
+              ...rows.flatMap((r) => tokenSeries.map(([k]) => r[k])),
+            ) * 1.1;
+          const chart = svg("svg", {
+            viewBox: "0 0 " + w + " " + h,
+            role: "img",
+            "aria-label": "每日 Token 使用趋势",
+            class: "trend",
+          });
+          for (let i = 0; i <= 4; i++) {
+            const y = top + (plotH * i) / 4;
+            chart.append(
+              svg("line", {
+                x1: left,
+                y1: y,
+                x2: w - right,
+                y2: y,
+                stroke: "#e9efec",
+                "stroke-width": 1,
+              }),
+            );
+            chart.append(
+              svg(
+                "text",
+                {
+                  x: left - 12,
+                  y: y + 4,
+                  "text-anchor": "end",
+                  fill: "#81928b",
+                  "font-size": 11,
+                },
+                compact(max * (1 - i / 4)),
+              ),
+            );
+          }
+          const x = (i) =>
+              left + plotW * (rows.length === 1 ? 0.5 : i / (rows.length - 1)),
+            y = (v) => top + plotH * (1 - v / max);
+          const step = Math.max(1, Math.ceil(rows.length / 6));
+          rows.forEach((r, i) => {
+            if (i % step === 0 || i === rows.length - 1)
+              chart.append(
+                svg(
+                  "text",
+                  {
+                    x: x(i),
+                    y: h - 11,
+                    "text-anchor": "middle",
+                    fill: "#81928b",
+                    "font-size": 11,
+                  },
+                  r.date.slice(5),
+                ),
+              );
+          });
+          tokenSeries.forEach(([key, name, color]) => {
+            chart.append(
+              svg("polyline", {
+                points: rows.map((r, i) => x(i) + "," + y(r[key])).join(" "),
+                fill: "none",
+                stroke: color,
+                "stroke-width": 2.5,
+                "stroke-linecap": "round",
+                "stroke-linejoin": "round",
+              }),
+            );
+            rows.forEach((r, i) => {
+              const point = svg("circle", {
+                cx: x(i),
+                cy: y(r[key]),
+                r: 3,
+                fill: color,
+                tabindex: 0,
+              });
+              point.append(
+                svg(
+                  "title",
+                  {},
+                  r.date + " " + name + "：" + num(r[key]) + " Token",
+                ),
+              );
+              chart.append(point);
+            });
+          });
+          box.replaceChildren(chart);
+        }
+        function donut(rows) {
+          const box = $("model-donut");
+          const sum = rows.reduce((a, r) => a + r.total_tokens, 0);
+          if (sum === 0) {
+            empty(box, "暂无 Token 用量");
+            return;
+          }
+          const slices = rows
+            .slice(0, 6)
+            .map((r) => ({ name: r.model, value: r.total_tokens }));
+          if (rows.length > 6)
+            slices.push({
+              name: "其他型号",
+              value: rows.slice(6).reduce((a, r) => a + r.total_tokens, 0),
+            });
+          const layout = node("div", "donut-layout"),
+            wrap = node("div", "donut-wrap"),
+            chart = svg("svg", {
+              viewBox: "0 0 200 200",
+              role: "img",
+              "aria-label": "模型Token占比",
+            });
+          let offset = 0;
+          const radius = 76,
+            circumference = 2 * Math.PI * radius;
+          chart.append(
+            svg("circle", {
+              cx: 100,
+              cy: 100,
+              r: radius,
+              fill: "none",
+              stroke: "#eff5f3",
+              "stroke-width": 25,
+            }),
+          );
+          const legend = node("div", "model-legend");
+          slices.forEach((r, i) => {
+            const pct = r.value / sum;
+            const circle = svg("circle", {
+              cx: 100,
+              cy: 100,
+              r: radius,
+              fill: "none",
+              stroke: colors[i],
+              "stroke-width": 25,
+              "stroke-dasharray":
+                Math.max(0, pct * circumference - 2) + " " + circumference,
+              "stroke-dashoffset": -offset * circumference,
+              transform: "rotate(-90 100 100)",
+              tabindex: 0,
+            });
+            circle.append(
+              svg(
+                "title",
+                {},
+                r.name +
+                  "：" +
+                  num(r.value) +
+                  " Token (" +
+                  (pct * 100).toFixed(1) +
+                  "%)",
+              ),
+            );
+            chart.append(circle);
+            offset += pct;
+            const item = node("div", "model-item"),
+              dot = node("i", "dot");
+            dot.style.background = colors[i];
+            const name = node("span", "model-name", r.name);
+            name.title = r.name;
+            item.append(
+              dot,
+              name,
+              node("span", "model-share", (pct * 100).toFixed(1) + "%"),
+            );
+            legend.append(item);
+          });
+          const center = node("div", "donut-label");
+          center.append(
+            node("b", "", String(rows.length)),
+            node("span", "", "使用型号"),
+          );
+          wrap.append(chart, center);
+          layout.append(wrap, legend);
+          box.replaceChildren(layout);
+        }
+        function ranking() {
+          const rows = [...report.users]
+            .sort(
+              (a, b) =>
+                b[state.metric] - a[state.metric] || a.user_id - b.user_id,
+            )
+            .slice(0, 12);
+          const box = $("ranking");
+          if (!rows.length) {
+            empty(box, "本分组暂无用户");
+            return;
+          }
+          const max = Math.max(1, ...rows.map((r) => r[state.metric]));
+          box.replaceChildren(
+            ...rows.map((r, i) => {
+              const button = node("button", "bar-row");
+              button.type = "button";
+              button.setAttribute("aria-label", "查看" + label(r));
+              const name = node(
+                "span",
+                "bar-name",
+                r.username || r.user_email || "#" + r.user_id,
+              );
+              name.title = label(r);
+              const track = node("span", "track"),
+                fill = node("span", "bar-fill");
+              fill.style.width =
+                Math.max(0, (r[state.metric] / max) * 100) + "%";
+              track.append(fill);
+              button.append(
+                node("span", "rank-no", String(i + 1).padStart(2, "0")),
+                name,
+                track,
+                node(
+                  "span",
+                  "bar-number",
+                  state.metric === "actual_cost"
+                    ? money(r[state.metric])
+                    : compact(r[state.metric]),
+                ),
+              );
+              button.addEventListener("click", () => setUser(r.user_id));
+              return button;
+            }),
+          );
+          $("rank-note").textContent =
+            "展示前 " +
+            rows.length +
+            " 人，共 " +
+            report.users.length +
+            " 人；完整名单见下方用户明细。点击可查看个人。";
+        }
+        function modelTable(rows) {
+          $("model-count").textContent = rows.length + " 个型号";
+          $("model-rows").replaceChildren(
+            ...rows.map((r) => {
+              const tr = node("tr");
+              const name = node("td", "", r.model);
+              name.title = r.model;
+              tr.append(
+                name,
+                node("td", "", num(r.requests)),
+                node("td", "", compact(r.total_tokens)),
+                node("td", "", money(r.actual_cost)),
+              );
+              return tr;
+            }),
+          );
+          if (!rows.length) {
+            const tr = node("tr"),
+              td = node("td", "", "统计区间内暂无模型用量");
+            td.colSpan = 4;
+            tr.append(td);
+            $("model-rows").append(tr);
+          }
+        }
+        function userTable() {
+          let rows = pick(report.users).filter((u) =>
+            (label(u) + " " + u.user_email)
+              .toLocaleLowerCase()
+              .includes(state.search),
+          );
+          rows = [...rows].sort(
+            (a, b) =>
+              (a[state.sort] - b[state.sort]) * state.direction ||
+              a.user_id - b.user_id,
+          );
+          const pages = Math.max(1, Math.ceil(rows.length / 20));
+          state.page = Math.max(1, Math.min(state.page, pages));
+          const shown = rows.slice((state.page - 1) * 20, state.page * 20);
+          $("user-rows").replaceChildren(
+            ...shown.map((u) => {
+              const tr = node("tr"),
+                user = node("td"),
+                button = node(
+                  "button",
+                  "",
+                  u.username || u.user_email || "用户 #" + u.user_id,
+                );
+              button.type = "button";
+              button.addEventListener("click", () => setUser(u.user_id));
+              user.append(
+                button,
+                node(
+                  "div",
+                  "email",
+                  (u.user_email ? u.user_email + " · " : "") + "#" + u.user_id,
+                ),
+              );
+              tr.append(user);
+              [
+                "requests",
+                "total_tokens",
+                "input_tokens",
+                "output_tokens",
+                "cache_read_tokens",
+                "cache_write_tokens",
+              ].forEach((k) => tr.append(node("td", "", num(u[k]))));
+              tr.append(
+                node("td", "", money(u.actual_cost)),
+                node("td", "", money(u.standard_cost)),
+              );
+              return tr;
+            }),
+          );
+          if (!shown.length) {
+            const tr = node("tr"),
+              td = node("td", "", "没有匹配的用户");
+            td.colSpan = 9;
+            tr.append(td);
+            $("user-rows").append(tr);
+          }
+          $("table-count").textContent = rows.length + " 人";
+          $("page-label").textContent =
+            "第 " +
+            state.page +
+            " / " +
+            pages +
+            " 页 · 共 " +
+            num(rows.length) +
+            " 人";
+          $("prev-page").disabled = state.page <= 1;
+          $("next-page").disabled = state.page >= pages;
+        }
+        function render() {
+          const users = pick(report.users),
+            metrics = total(users),
+            modelRows = models();
+          $("metric-requests").textContent = num(metrics.requests);
+          $("metric-tokens").textContent = compact(metrics.total_tokens);
+          $("metric-tokens").title = num(metrics.total_tokens) + " Token";
+          $("metric-users").textContent = num(
+            users.filter((u) => u.requests > 0).length,
+          );
+          $("members-label").textContent =
+            "共 " + users.length + " 位用户，含零用量成员";
+          $("metric-cost").textContent = money(metrics.actual_cost);
+          $("standard-cost").textContent =
+            "标准费用 " + money(metrics.standard_cost);
+          $("scope-note").textContent =
+            state.user === null
+              ? "当前分组全部用户"
+              : "仅查看该用户在当前分组的用量";
+          trend(dailyRows());
+          donut(modelRows);
+          ranking();
+          modelTable(modelRows);
+          userTable();
+        }
+        $("report-title").textContent = report.group_name + " · 用户用量";
+        $("period").textContent =
+          time(report.start_time) +
+          " 至 " +
+          time(report.end_time) +
+          " (北京时间)";
+        $("exported-at").textContent = "导出于 " + time(report.generated_at);
+        $("report-footer").textContent =
+          "分组 #" +
+          report.group_id +
+          " · " +
+          report.users.length +
+          " 位关联用户 · 费用单位 USD";
+        const option = node("option", "", "全部用户");
+        option.value = "all";
+        $("user-scope").append(option);
+        report.users.forEach((u) => {
+          const opt = node("option", "", label(u));
+          opt.value = String(u.user_id);
+          $("user-scope").append(opt);
+        });
+        $("user-scope").addEventListener("change", (e) =>
+          setUser(e.target.value === "all" ? null : Number(e.target.value)),
+        );
+        tokenSeries.forEach(([, name, color]) => {
+          const item = node("span"),
+            dot = node("i", "dot");
+          dot.style.background = color;
+          item.append(dot, document.createTextNode(name));
+          $("trend-legend").append(item);
+        });
+        document.querySelectorAll("[data-metric]").forEach((b) =>
+          b.addEventListener("click", () => {
+            state.metric = b.dataset.metric;
+            document
+              .querySelectorAll("[data-metric]")
+              .forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+            ranking();
+          }),
+        );
+        document.querySelectorAll("[data-sort]").forEach((b) =>
+          b.addEventListener("click", () => {
+            state.direction =
+              state.sort === b.dataset.sort ? -state.direction : -1;
+            state.sort = b.dataset.sort;
+            state.page = 1;
+            userTable();
+          }),
+        );
+        $("user-search").addEventListener("input", (e) => {
+          state.search = e.target.value.trim().toLocaleLowerCase();
+          state.page = 1;
+          userTable();
+        });
+        $("prev-page").addEventListener("click", () => {
+          state.page--;
+          userTable();
+        });
+        $("next-page").addEventListener("click", () => {
+          state.page++;
+          userTable();
+        });
+        render();
+      })();
+    </script>
+  </body>
+</html>

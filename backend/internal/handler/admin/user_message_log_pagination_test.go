@@ -61,3 +61,40 @@ func TestAdminUserUsagePagination(t *testing.T) {
 		})
 	}
 }
+
+func (r *usageAdminPaginationRepo) ReadGroupUsageReport(_ context.Context, groupID int64, from, to time.Time) (*service.GroupUsageReport, error) {
+	r.called, r.groupID = true, groupID
+	return &service.GroupUsageReport{GroupID: groupID, GroupName: "测试组", StartTime: from, EndTime: to}, nil
+}
+
+func TestAdminUserUsageExportRequiresOneGroup(t *testing.T) {
+	for _, format := range []string{"xlsx", "html", "csv"} {
+		for _, query := range []string{"", "&group_id=0", "&group_id=-1"} {
+			repo := &usageAdminPaginationRepo{}
+			handler := NewUserMessageLogHandler(service.ProvideUserMessageLogService(nil, repo))
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest("GET", "/export?format="+format+query, nil)
+			handler.ExportUsageRanking(c)
+			require.Equal(t, 400, recorder.Code)
+			require.False(t, repo.called)
+		}
+	}
+	for _, format := range []string{"xlsx", "html", "exe"} {
+		repo := &usageAdminPaginationRepo{}
+		handler := NewUserMessageLogHandler(service.ProvideUserMessageLogService(nil, repo))
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest("GET", "/export?group_id=20&format="+format, nil)
+		handler.ExportUsageRanking(c)
+		if format == "exe" {
+			require.Equal(t, 400, recorder.Code)
+			require.False(t, repo.called)
+		} else {
+			require.Equal(t, 200, recorder.Code)
+			require.True(t, repo.called)
+			require.EqualValues(t, 20, repo.groupID)
+			require.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+		}
+	}
+}

@@ -13,6 +13,9 @@ import (
 
 // ExportGroupUsage 仅导出用量字段，不包含用户消息、密钥或其他用户资料。
 func (s *UserMessageLogService) ExportGroupUsage(ctx context.Context, groupID int64, days int) ([]byte, string, error) {
+	if groupID <= 0 {
+		return nil, "", ErrUsageReportGroupRequired
+	}
 	if days <= 0 || days > 90 {
 		days = 7
 	}

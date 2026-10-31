@@ -178,12 +178,21 @@ func (h *UserMessageViewerHandler) ExportUsageRanking(c *gin.Context) {
 		return
 	}
 	days, _ := strconv.Atoi(c.Query("days"))
-	data, filename, err := h.logService.ExportGroupUsage(c.Request.Context(), groupID, days)
+	format := strings.ToLower(strings.TrimSpace(c.DefaultQuery("format", "csv")))
+	data, filename, contentType, err := h.logService.ExportGroupUsageReport(c.Request.Context(), groupID, days, format)
+	if errors.Is(err, service.ErrUsageReportFormat) {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if errors.Is(err, service.ErrUsageReportGroupNotFound) {
+		response.NotFound(c, err.Error())
+		return
+	}
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}
 	c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 	c.Header("Cache-Control", "no-store")
-	c.Data(200, "text/csv; charset=utf-8", data)
+	c.Data(200, contentType, data)
 }
