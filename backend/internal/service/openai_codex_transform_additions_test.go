@@ -148,11 +148,16 @@ func TestStripCodexPromptCacheBreakpoints(t *testing.T) {
 		},
 	}
 	require.True(t, stripCodexPromptCacheBreakpoints(body))
-	items := body["input"].([]any)
-	first := items[0].(map[string]any)
+	items, ok := body["input"].([]any)
+	require.True(t, ok)
+	first, ok := items[0].(map[string]any)
+	require.True(t, ok)
 	_, exists := first["prompt_cache_breakpoint"]
 	require.False(t, exists)
-	part := first["content"].([]any)[0].(map[string]any)
+	content, ok := first["content"].([]any)
+	require.True(t, ok)
+	part, ok := content[0].(map[string]any)
+	require.True(t, ok)
 	_, exists = part["prompt_cache_breakpoint"]
 	require.False(t, exists)
 	// 幂等

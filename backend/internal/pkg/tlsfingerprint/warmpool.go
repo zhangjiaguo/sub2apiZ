@@ -285,10 +285,17 @@ func WarmHTTPProxyDialerFor(profile *Profile, proxyURL *url.URL, cfg *WarmPoolCo
 	}
 	key := warmPoolRegistryKey(profile, proxyURL)
 	if cached, ok := warmPoolRegistry.Load(key); ok {
-		return cached.(*warmPoolDialer).DialTLSContext
+		dialer, valid := cached.(*warmPoolDialer)
+		if !valid {
+			panic("TLS 预连接缓存类型不匹配")
+		}
+		return dialer.DialTLSContext
 	}
 	stored, loaded := warmPoolRegistry.LoadOrStore(key, newWarmPoolDialer(base, cfg))
-	dialer := stored.(*warmPoolDialer)
+	dialer, valid := stored.(*warmPoolDialer)
+	if !valid {
+		panic("TLS 预连接缓存类型不匹配")
+	}
 	if !loaded {
 		proxyHost, profileName := "", ""
 		if proxyURL != nil {

@@ -507,7 +507,7 @@ func (b *usageExcelBuilder) flush(name string) error {
 
 func buildGroupUsageXLSX(report *GroupUsageReport) ([]byte, error) {
 	b := &usageExcelBuilder{f: excelize.NewFile(), sheets: map[string]*usageExcelSheet{}, styles: map[string]int{}}
-	defer func() { b.f.Close() }()
+	defer func() { _ = b.f.Close() }()
 	names := []string{usageOverview, usagePersonal, usageUsers, usageDaily, usageModels}
 	b.check(b.f.SetSheetName("Sheet1", usageOverview))
 	for i, name := range names {
@@ -543,7 +543,7 @@ func buildGroupUsageXLSX(report *GroupUsageReport) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	b.f.Close()
+	_ = b.f.Close()
 	b.f = finished
 	show := false
 	for _, name := range names {

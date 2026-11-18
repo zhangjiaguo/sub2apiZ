@@ -66,7 +66,7 @@ func warmWaitFor(t *testing.T, timeout time.Duration, cond func() bool) {
 // 命中：池内就绪连接直接返回，底层零拨号，且读超时已重置。
 func TestWarmPoolHit(t *testing.T) {
 	client, server := net.Pipe()
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 	base := newFakeWarmBase()
 	d := newWarmPoolDialer(base, &WarmPoolConfig{Size: 2, MaxAge: 10 * time.Second, ProbeTimeout: 20 * time.Millisecond})
 	d.mu.Lock()
@@ -95,9 +95,9 @@ func TestWarmPoolHit(t *testing.T) {
 // 过期连接：丢弃并关闭，回落同步拨号。
 func TestWarmPoolExpiredDiscarded(t *testing.T) {
 	staleClient, staleServer := net.Pipe()
-	defer staleServer.Close()
+	defer func() { _ = staleServer.Close() }()
 	freshClient, _ := net.Pipe()
-	defer freshClient.Close()
+	defer func() { _ = freshClient.Close() }()
 	base := newFakeWarmBase(freshClient)
 	d := newWarmPoolDialer(base, &WarmPoolConfig{Size: 2, MaxAge: 50 * time.Millisecond, ProbeTimeout: 20 * time.Millisecond})
 	d.mu.Lock()
@@ -118,7 +118,7 @@ func TestWarmPoolExpiredDiscarded(t *testing.T) {
 		t.Fatalf("应恰好一次同步拨号，实际 %d", base.callCount())
 	}
 	// 过期连接应被关闭：对端读应得 EOF。
-	staleServer.SetReadDeadline(time.Now().Add(time.Second))
+	_ = staleServer.SetReadDeadline(time.Now().Add(time.Second)) // 已关闭的管道可能拒绝设置期限，下面仍验证读取失败。
 	if _, err := staleServer.Read(make([]byte, 1)); err == nil {
 		t.Fatal("过期连接未关闭")
 	}
@@ -129,7 +129,7 @@ func TestWarmPoolDeadConnDiscarded(t *testing.T) {
 	deadClient, deadServer := net.Pipe()
 	_ = deadServer.Close() // 对端先关 → Read 立即 EOF
 	freshClient, _ := net.Pipe()
-	defer freshClient.Close()
+	defer func() { _ = freshClient.Close() }()
 	base := newFakeWarmBase(freshClient)
 	d := newWarmPoolDialer(base, &WarmPoolConfig{Size: 2, MaxAge: 10 * time.Second, ProbeTimeout: 50 * time.Millisecond})
 	d.mu.Lock()
@@ -148,9 +148,9 @@ func TestWarmPoolDeadConnDiscarded(t *testing.T) {
 // 服务端抢先发数据（协议异常）：探测读到数据即视为不可用，丢弃。
 func TestWarmPoolUnexpectedDataDiscarded(t *testing.T) {
 	client, server := net.Pipe()
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 	freshClient, _ := net.Pipe()
-	defer freshClient.Close()
+	defer func() { _ = freshClient.Close() }()
 	base := newFakeWarmBase(freshClient)
 	d := newWarmPoolDialer(base, &WarmPoolConfig{Size: 2, MaxAge: 10 * time.Second, ProbeTimeout: 100 * time.Millisecond})
 	go func() { _, _ = server.Write([]byte("unexpected")) }()
@@ -173,8 +173,8 @@ func TestWarmPoolRefillRestoresSize(t *testing.T) {
 	conns := make([]net.Conn, 0, 4)
 	for i := 0; i < 4; i++ {
 		c, s := net.Pipe()
-		defer c.Close()
-		defer s.Close()
+		defer func() { _ = c.Close() }()
+		defer func() { _ = s.Close() }()
 		conns = append(conns, c)
 	}
 	base := newFakeWarmBase(conns...)

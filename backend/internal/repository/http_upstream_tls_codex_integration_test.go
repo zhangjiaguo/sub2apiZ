@@ -114,7 +114,7 @@ type helloCaptureListener struct {
 	net.Listener
 	cert tls.Certificate
 
-	mu         sync.Mutex
+	mu          sync.Mutex
 	helloByAddr map[string][]byte // 客户端 RemoteAddr → 原始 ClientHello
 	handshakes  int32             // 完成的 TLS 握手总数（连接复用不增加）
 }
@@ -433,7 +433,7 @@ func startMiniSOCKS5Proxy(t *testing.T) *url.URL {
 }
 
 func handleMiniSOCKS5(c net.Conn) {
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	_ = c.SetDeadline(time.Now().Add(15 * time.Second))
 	// 客户端问候：VER NMETHODS METHODS...
 	hdr := make([]byte, 2)
@@ -494,7 +494,7 @@ func handleMiniSOCKS5(c net.Conn) {
 		_, _ = c.Write([]byte{0x05, 0x01, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
 		return
 	}
-	defer upstream.Close()
+	defer func() { _ = upstream.Close() }()
 	if _, err := c.Write([]byte{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0}); err != nil {
 		return
 	}
@@ -527,7 +527,7 @@ func startMiniHTTPConnectProxy(t *testing.T) *url.URL {
 }
 
 func handleMiniHTTPConnect(c net.Conn) {
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	_ = c.SetDeadline(time.Now().Add(15 * time.Second))
 	br := bufio.NewReader(c)
 	req, err := http.ReadRequest(br)
@@ -539,7 +539,7 @@ func handleMiniHTTPConnect(c net.Conn) {
 		_, _ = c.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n"))
 		return
 	}
-	defer upstream.Close()
+	defer func() { _ = upstream.Close() }()
 	if _, err := c.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n")); err != nil {
 		return
 	}

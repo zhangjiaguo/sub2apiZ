@@ -19,7 +19,7 @@ func (r *UserMessageViewerRepository) ReadGroupUsageReport(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	report := &service.GroupUsageReport{GroupID: groupID, StartTime: from, EndTime: to}
 	err = tx.QueryRowContext(ctx, `SELECT coalesce(name,'') FROM groups WHERE id=$1 AND deleted_at IS NULL`, groupID).Scan(&report.GroupName)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -52,13 +52,13 @@ func (r *UserMessageViewerRepository) ReadGroupUsageReport(ctx context.Context, 
 	for rows.Next() {
 		var user service.UsageReportUser
 		if err = rows.Scan(&user.UserID, &user.Username, &user.UserEmail, &user.Requests, &user.InputTokens, &user.OutputTokens, &user.CacheRead, &user.CacheWrite, &user.ActualCost, &user.StandardCost); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return nil, err
 		}
 		report.Users = append(report.Users, user)
 	}
 	err = rows.Err()
-	rows.Close()
+	_ = rows.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -74,13 +74,13 @@ func (r *UserMessageViewerRepository) ReadGroupUsageReport(ctx context.Context, 
 	for rows.Next() {
 		var day service.UsageReportDay
 		if err = rows.Scan(&day.UserID, &day.Date, &day.Requests, &day.InputTokens, &day.OutputTokens, &day.CacheRead, &day.CacheWrite, &day.ActualCost, &day.StandardCost); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return nil, err
 		}
 		report.Daily = append(report.Daily, day)
 	}
 	err = rows.Err()
-	rows.Close()
+	_ = rows.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -94,13 +94,13 @@ func (r *UserMessageViewerRepository) ReadGroupUsageReport(ctx context.Context, 
 	for rows.Next() {
 		var model service.UsageReportModel
 		if err = rows.Scan(&model.UserID, &model.Model, &model.Requests, &model.InputTokens, &model.OutputTokens, &model.CacheRead, &model.CacheWrite, &model.ActualCost, &model.StandardCost); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return nil, err
 		}
 		report.Models = append(report.Models, model)
 	}
 	err = rows.Err()
-	rows.Close()
+	_ = rows.Close()
 	if err != nil {
 		return nil, err
 	}

@@ -37,7 +37,7 @@ func (r *UserMessageViewerRepository) List(ctx context.Context) ([]*UserMessageV
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := []*UserMessageViewer{}
 	for rows.Next() {
 		item := &UserMessageViewer{}
@@ -57,7 +57,7 @@ func (r *UserMessageViewerRepository) GroupsForUser(ctx context.Context, userID 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []int64
 	for rows.Next() {
 		var id int64
@@ -109,7 +109,6 @@ func (r *UserMessageViewerRepository) RankGroupUsage(ctx context.Context, groupI
 	if groupID > 0 {
 		args = append(args, groupID)
 		usageWhere += " AND l.group_id = $2"
-		userWhere += " AND usage.user_id IS NOT NULL"
 		countQuery += " AND EXISTS (SELECT 1 FROM usage_logs l WHERE l.user_id = u.id AND " + usageWhere + ")"
 		countArgs = args
 	}
@@ -133,7 +132,7 @@ func (r *UserMessageViewerRepository) RankGroupUsage(ctx context.Context, groupI
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	result.Items, err = scanGroupUsageRankingRows(rows)
 	if err != nil {
 		return nil, err
@@ -148,7 +147,7 @@ func (r *UserMessageViewerRepository) ListGroupUsage(ctx context.Context, groupI
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanGroupUsageRankingRows(rows)
 }
 
@@ -207,7 +206,7 @@ func (r *UserMessageViewerRepository) GroupNames(ctx context.Context, ids []int6
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	found := map[int64]string{}
 	for rows.Next() {
 		var id int64

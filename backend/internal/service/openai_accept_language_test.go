@@ -27,7 +27,7 @@ func TestNormalizeOpenAIAcceptLanguage(t *testing.T) {
 		req.Header["Accept_Language"] = []string{"zh-CN"}
 		normalizeOpenAIAcceptLanguage(req)
 		require.Equal(t, "en-US,en;q=0.9", req.Header.Get("Accept-Language"))
-		require.Empty(t, req.Header["Accept_Language"])
+		require.Empty(t, req.Header[http.CanonicalHeaderKey("Accept_Language")])
 	})
 	t.Run("多值折叠为单值", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodPost, "https://chatgpt.com/x", nil)

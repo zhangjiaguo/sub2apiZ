@@ -397,82 +397,82 @@ func rewriteCodexEnvironmentBody(body []byte, targetTZ string, now time.Time) ([
 	// 重建 content 数组（保序；replaceKey 非空时用 replaceRaw 替换该键的值）。
 	rebuildObject := func(obj gjson.Result, replaceKey string, replaceRaw string) []byte {
 		var buf bytes.Buffer
-		buf.WriteByte('{')
+		_ = buf.WriteByte('{')
 		first := true
 		obj.ForEach(func(key, value gjson.Result) bool {
 			if !first {
-				buf.WriteByte(',')
+				_ = buf.WriteByte(',')
 			}
 			first = false
 			writeJSONString(&buf, key.String())
-			buf.WriteByte(':')
+			_ = buf.WriteByte(':')
 			if key.String() == replaceKey {
-				buf.WriteString(replaceRaw)
+				_, _ = buf.WriteString(replaceRaw)
 			} else {
-				buf.WriteString(value.Raw)
+				_, _ = buf.WriteString(value.Raw)
 			}
 			return true
 		})
-		buf.WriteByte('}')
+		_ = buf.WriteByte('}')
 		return buf.Bytes()
 	}
 
 	var newInput bytes.Buffer
-	newInput.WriteByte('[')
+	_ = newInput.WriteByte('[')
 	itemFirst := true
 	input.ForEach(func(_, item gjson.Result) bool {
 		if !itemFirst {
-			newInput.WriteByte(',')
+			_ = newInput.WriteByte(',')
 		}
 		itemFirst = false
 		if !item.IsObject() || item.Get("role").String() != "user" {
-			newInput.WriteString(item.Raw)
+			_, _ = newInput.WriteString(item.Raw)
 			return true
 		}
 		content := item.Get("content")
 		if !content.Exists() || !content.IsArray() {
-			newInput.WriteString(item.Raw)
+			_, _ = newInput.WriteString(item.Raw)
 			return true
 		}
 		contentChanged := false
 		var newContent bytes.Buffer
-		newContent.WriteByte('[')
+		_ = newContent.WriteByte('[')
 		cFirst := true
 		content.ForEach(func(_, c gjson.Result) bool {
 			if !cFirst {
-				newContent.WriteByte(',')
+				_ = newContent.WriteByte(',')
 			}
 			cFirst = false
 			if !c.IsObject() || c.Get("type").String() != "input_text" ||
 				!strings.HasPrefix(strings.TrimSpace(c.Get("text").String()), "<environment_context>") {
-				newContent.WriteString(c.Raw)
+				_, _ = newContent.WriteString(c.Raw)
 				return true
 			}
 			newText, ok := rewriteCodexEnvBlock(c.Get("text").String(), targetTZ, loc, now)
 			if !ok {
-				newContent.WriteString(c.Raw)
+				_, _ = newContent.WriteString(c.Raw)
 				return true
 			}
 			blocks++
 			contentChanged = true
 			textRaw, err := codexEnvMarshalNoEscape(newText)
 			if err != nil {
-				newContent.WriteString(c.Raw)
+				_, _ = newContent.WriteString(c.Raw)
 				return true
 			}
-			newContent.Write(rebuildObject(c, "text", string(textRaw)))
+			_, _ = newContent.Write(rebuildObject(c, "text", string(textRaw)))
 			return true
 		})
-		newContent.WriteByte(']')
+		_ = newContent.WriteByte(']')
 		if !contentChanged {
-			newInput.WriteString(item.Raw)
+			_, _ = newInput.WriteString(item.Raw)
 			return true
 		}
 		changed = true
-		newInput.Write(rebuildObject(item, "content", newContent.String()))
+		_, _ = newInput.Write(rebuildObject(item, "content", newContent.String()))
 		return true
 	})
-	newInput.WriteByte(']')
+	_ = newInput.WriteByte(']')
 
 	if !changed {
 		return body, blocks, false, nil

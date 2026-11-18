@@ -24,7 +24,7 @@ func TestUserUsageRankingPagination(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			db, mock, err := sqlmock.New()
 			require.NoError(t, err)
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 			since := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
 			count := mock.ExpectQuery(`SELECT count\(\*\) FROM users u WHERE u.deleted_at IS NULL`)
 			if tc.groupID > 0 {
@@ -58,7 +58,7 @@ func TestUserUsageRankingPagination(t *testing.T) {
 func TestUserUsageRankingEmptyPage(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	mock.ExpectQuery(`SELECT count`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	result, err := NewUserMessageViewerRepository(db).RankGroupUsage(context.Background(), 0, time.Now(), 12, 20)
 	require.NoError(t, err)
@@ -72,7 +72,7 @@ func TestUserUsageRankingEmptyPage(t *testing.T) {
 func TestUserUsageExportHasNoPaginationLimit(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	since := time.Now()
 	rows := sqlmock.NewRows([]string{"id", "username", "email", "requests", "input", "output", "cache", "cost"})
 	for id := int64(1); id <= 125; id++ {

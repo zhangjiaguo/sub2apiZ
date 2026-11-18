@@ -37,7 +37,7 @@ func TestResolveTLSProfilePlatformDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenAI OAuth enabled no binding → CodexProfile",
+			name:    "OpenAI OAuth enabled no binding → CodexProfile",
 			account: &Account{ID: 133, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Extra: enabled},
 			check: func(t *testing.T, p *tlsfingerprint.Profile) {
 				if p == nil {
@@ -53,7 +53,7 @@ func TestResolveTLSProfilePlatformDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenAI SetupToken enabled no binding → CodexProfile",
+			name:    "OpenAI SetupToken enabled no binding → CodexProfile",
 			account: &Account{ID: 145, Platform: PlatformOpenAI, Type: AccountTypeSetupToken, Extra: enabled},
 			check: func(t *testing.T, p *tlsfingerprint.Profile) {
 				if p != tlsfingerprint.CodexProfile {
@@ -72,7 +72,7 @@ func TestResolveTLSProfilePlatformDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenAI OAuth enabled but Extra nil → nil",
+			name:    "OpenAI OAuth enabled but Extra nil → nil",
 			account: &Account{ID: 243, Platform: PlatformOpenAI, Type: AccountTypeOAuth},
 			check: func(t *testing.T, p *tlsfingerprint.Profile) {
 				if p != nil {
@@ -81,7 +81,7 @@ func TestResolveTLSProfilePlatformDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenAI API-key enabled → nil（不支持）",
+			name:    "OpenAI API-key enabled → nil（不支持）",
 			account: &Account{ID: 999, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Extra: enabled},
 			check: func(t *testing.T, p *tlsfingerprint.Profile) {
 				if p != nil {
@@ -90,7 +90,7 @@ func TestResolveTLSProfilePlatformDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "Anthropic OAuth enabled no binding → Node.js 默认",
+			name:    "Anthropic OAuth enabled no binding → Node.js 默认",
 			account: &Account{ID: 501, Platform: PlatformAnthropic, Type: AccountTypeOAuth, Extra: enabled},
 			check: func(t *testing.T, p *tlsfingerprint.Profile) {
 				if p == nil {
@@ -102,7 +102,7 @@ func TestResolveTLSProfilePlatformDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "Anthropic API-key enabled → nil",
+			name:    "Anthropic API-key enabled → nil",
 			account: &Account{ID: 502, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Extra: enabled},
 			check: func(t *testing.T, p *tlsfingerprint.Profile) {
 				if p != nil {

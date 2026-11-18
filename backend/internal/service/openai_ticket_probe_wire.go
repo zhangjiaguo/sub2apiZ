@@ -95,27 +95,27 @@ const openAITicketProbeInstructions = "You are Codex, based on GPT-5. You are ru
 // + 顺带产出降智检测样本），测试可传任意短文本。
 func buildOpenAITicketProbeRequestBody(model, inputText string, ids *openAITicketProbeIdentity) []byte {
 	var b bytes.Buffer
-	b.WriteString(`{"model":`)
+	_, _ = b.WriteString(`{"model":`)
 	writeJSONString(&b, model)
-	b.WriteString(`,"instructions":`)
+	_, _ = b.WriteString(`,"instructions":`)
 	writeJSONString(&b, openAITicketProbeInstructions)
-	b.WriteString(`,"input":[{"type":"message","role":"user","content":`)
+	_, _ = b.WriteString(`,"input":[{"type":"message","role":"user","content":`)
 	writeJSONString(&b, inputText)
-	b.WriteString(`}],"tool_choice":"auto","parallel_tool_calls":false,` +
+	_, _ = b.WriteString(`}],"tool_choice":"auto","parallel_tool_calls":false,` +
 		`"reasoning":{"effort":"low","summary":"auto"},"store":false,"stream":true,` +
 		`"include":["reasoning.encrypted_content"],"prompt_cache_key":`)
 	writeJSONString(&b, ids.sessionID)
-	b.WriteString(`,"client_metadata":{"x-codex-installation-id":`)
+	_, _ = b.WriteString(`,"client_metadata":{"x-codex-installation-id":`)
 	writeJSONString(&b, ids.installationID)
-	b.WriteString(`,"session_id":`)
+	_, _ = b.WriteString(`,"session_id":`)
 	writeJSONString(&b, ids.sessionID)
-	b.WriteString(`,"thread_id":`)
+	_, _ = b.WriteString(`,"thread_id":`)
 	writeJSONString(&b, ids.threadID)
-	b.WriteString(`,"x-codex-window-id":`)
+	_, _ = b.WriteString(`,"x-codex-window-id":`)
 	writeJSONString(&b, ids.windowID)
-	b.WriteString(`,"x-codex-turn-metadata":`)
+	_, _ = b.WriteString(`,"x-codex-turn-metadata":`)
 	writeJSONString(&b, buildOpenAITicketTurnMetadataJSON(ids))
-	b.WriteString(`}}`)
+	_, _ = b.WriteString(`}}`)
 	return b.Bytes()
 }
 
@@ -124,25 +124,25 @@ func buildOpenAITicketProbeRequestBody(model, inputText string, ids *openAITicke
 // turn_id, window_id, turn_started_at_unix_ms）。
 func buildOpenAITicketTurnMetadataJSON(ids *openAITicketProbeIdentity) string {
 	var b bytes.Buffer
-	b.WriteString(`{"installation_id":`)
+	_, _ = b.WriteString(`{"installation_id":`)
 	writeJSONString(&b, ids.installationID)
-	b.WriteString(`,"session_id":`)
+	_, _ = b.WriteString(`,"session_id":`)
 	writeJSONString(&b, ids.sessionID)
-	b.WriteString(`,"thread_id":`)
+	_, _ = b.WriteString(`,"thread_id":`)
 	writeJSONString(&b, ids.threadID)
-	b.WriteString(`,"turn_id":`)
+	_, _ = b.WriteString(`,"turn_id":`)
 	writeJSONString(&b, ids.turnID)
-	b.WriteString(`,"window_id":`)
+	_, _ = b.WriteString(`,"window_id":`)
 	writeJSONString(&b, ids.windowID)
-	b.WriteString(`,"turn_started_at_unix_ms":`)
-	b.WriteString(strconv.FormatInt(ids.turnStartedAt, 10))
-	b.WriteString(`}`)
+	_, _ = b.WriteString(`,"turn_started_at_unix_ms":`)
+	_, _ = b.WriteString(strconv.FormatInt(ids.turnStartedAt, 10))
+	_, _ = b.WriteString(`}`)
 	return b.String()
 }
 
 func writeJSONString(b *bytes.Buffer, s string) {
 	enc, _ := json.Marshal(s)
-	b.Write(enc)
+	_, _ = b.Write(enc)
 }
 
 // openAITicketWireHeaderOrder 探测请求头的固定写出顺序（全小写）。
@@ -174,8 +174,8 @@ func writeOpenAITicketWireRequest(w io.Writer, req *http.Request, body []byte) e
 	if host == "" {
 		host = req.URL.Host
 	}
-	b.WriteString("host: ")
-	b.WriteString(host)
+	_, _ = b.WriteString("host: ")
+	_, _ = b.WriteString(host)
 	written := map[string]bool{"host": true}
 	for _, name := range openAITicketWireHeaderOrder {
 		values, ok := req.Header[http.CanonicalHeaderKey(name)]
@@ -187,10 +187,10 @@ func writeOpenAITicketWireRequest(w io.Writer, req *http.Request, body []byte) e
 			continue
 		}
 		for _, v := range values {
-			b.WriteString("\r\n")
-			b.WriteString(name)
-			b.WriteString(": ")
-			b.WriteString(v)
+			_, _ = b.WriteString("\r\n")
+			_, _ = b.WriteString(name)
+			_, _ = b.WriteString(": ")
+			_, _ = b.WriteString(v)
 		}
 		written[name] = true
 	}
@@ -209,19 +209,19 @@ func writeOpenAITicketWireRequest(w io.Writer, req *http.Request, body []byte) e
 	sort.Strings(extra)
 	for _, name := range extra {
 		for _, v := range extraValues[name] {
-			b.WriteString("\r\n")
-			b.WriteString(name)
-			b.WriteString(": ")
-			b.WriteString(v)
+			_, _ = b.WriteString("\r\n")
+			_, _ = b.WriteString(name)
+			_, _ = b.WriteString(": ")
+			_, _ = b.WriteString(v)
 		}
 	}
 	if body != nil {
-		b.WriteString("\r\ncontent-length: ")
-		b.WriteString(strconv.Itoa(len(body)))
+		_, _ = b.WriteString("\r\ncontent-length: ")
+		_, _ = b.WriteString(strconv.Itoa(len(body)))
 	}
-	b.WriteString("\r\n\r\n")
+	_, _ = b.WriteString("\r\n\r\n")
 	if body != nil {
-		b.Write(body)
+		_, _ = b.Write(body)
 	}
 	_, err := w.Write(b.Bytes())
 	return err

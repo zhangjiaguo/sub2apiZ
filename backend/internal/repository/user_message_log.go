@@ -43,7 +43,7 @@ func (r *UserMessageLogRepository) InsertBatch(ctx context.Context, logs []*serv
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 	for _, log := range logs {
 		var userID, apiKeyID, groupID any
 		if log.UserID > 0 {
@@ -91,7 +91,7 @@ func (r *UserMessageLogRepository) List(ctx context.Context, filter *service.Use
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	list := &service.UserMessageLogList{Items: []*service.UserMessageLog{}, Total: total, Page: page, PageSize: pageSize}
 	for rows.Next() {
 		item, err := scanUserMessageLog(rows)

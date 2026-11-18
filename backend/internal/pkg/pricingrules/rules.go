@@ -71,7 +71,7 @@ func LoadDefault() (*Rules, error) {
 	if path == "" {
 		path = "/app/data/official_pricing_rules.json"
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G703 -- 路径仅来自部署环境配置，允许运营者选择规则文件。
 	if os.IsNotExist(err) && !explicit {
 		return nil, nil
 	}

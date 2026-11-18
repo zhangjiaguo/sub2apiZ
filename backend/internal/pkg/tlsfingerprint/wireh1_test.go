@@ -143,7 +143,7 @@ func readWireH1TestRequest(br *bufio.Reader) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		raw.WriteString(line)
+		_, _ = raw.WriteString(line)
 		trimmed := strings.TrimRight(line, "\r\n")
 		if trimmed == "" {
 			break
@@ -162,7 +162,7 @@ func readWireH1TestRequest(br *bufio.Reader) (string, error) {
 		if _, err := io.ReadFull(br, body); err != nil {
 			return "", err
 		}
-		raw.Write(body)
+		_, _ = raw.Write(body)
 	}
 	return raw.String(), nil
 }
@@ -173,7 +173,7 @@ const wireH1TestOKResponse = "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream
 func newWireH1TestTransport(t *testing.T, addr string, cfg WireH1Config) *WireH1Transport {
 	t.Helper()
 	dial := func(ctx context.Context, network, a string) (net.Conn, error) {
-		d := &tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true, ServerName: "wire-h1-test"}}
+		d := &tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true, ServerName: "wire-h1-test"}} // #nosec G402 -- 只连接本测试创建的回环自签名服务器。
 		return d.DialContext(ctx, network, a)
 	}
 	return NewWireH1Transport(dial, cfg)

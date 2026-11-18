@@ -552,8 +552,8 @@ func (s *OpenAITicketGrabService) grabRoundResult(ctx context.Context, account *
 		rt.mu.Lock()
 		rt.lastResult, rt.lastProbeAt = outcome.result, time.Now()
 		cooldown, kind := openAITicketGrabCooldownForResult(outcome.result, outcome.retryAfter, settings)
-		switch {
-		case outcome.result == "accepted":
+		switch outcome.result {
+		case "accepted":
 			// 成功后按「提前秒数」计算下一次补票时间。
 			rt.nextProbeAt = time.Now().Add(time.Duration(settings.TTLSeconds-settings.LeadSeconds) * time.Second)
 			rt.mu.Unlock()
@@ -715,7 +715,7 @@ func (s *OpenAITicketGrabService) probeCore(ctx context.Context, account *Accoun
 		meta.dur = time.Since(start)
 		return outcome, nil, 0, meta
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	duration := time.Since(start)
 	meta.dur = duration
 
@@ -933,7 +933,7 @@ func openAITicketTraceExit(ctx context.Context, client *http.Client) (ip, colo s
 	if err != nil {
 		return "", ""
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
 	for _, line := range strings.Split(string(data), "\n") {
 		if v, ok := strings.CutPrefix(line, "ip="); ok {

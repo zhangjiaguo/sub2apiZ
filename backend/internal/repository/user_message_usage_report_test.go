@@ -12,7 +12,7 @@ import (
 func TestVisualGroupReportUsesOneScopedSnapshot(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	from := time.Date(2026, 10, 24, 4, 0, 0, 0, time.UTC)
 	to := from.AddDate(0, 0, 7)
 	mock.ExpectBegin()
@@ -41,7 +41,7 @@ func TestVisualGroupReportUsesOneScopedSnapshot(t *testing.T) {
 func TestVisualGroupReportDoesNotReadWithoutGroup(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	_, err = NewUserMessageViewerRepository(db).ReadGroupUsageReport(context.Background(), 0, time.Now(), time.Now())
 	require.ErrorIs(t, err, service.ErrUsageReportGroupRequired)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -50,7 +50,7 @@ func TestVisualGroupReportDoesNotReadWithoutGroup(t *testing.T) {
 func TestVisualGroupReportMissingGroupRollsBack(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	mock.ExpectBegin()
 	mock.ExpectQuery(`SELECT coalesce`).WithArgs(int64(999)).WillReturnRows(sqlmock.NewRows([]string{"name"}))
 	mock.ExpectRollback()

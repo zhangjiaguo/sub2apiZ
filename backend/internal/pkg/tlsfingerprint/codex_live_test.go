@@ -39,7 +39,7 @@ func TestCodexProfileLiveHandshake(t *testing.T) {
 	if err != nil {
 		t.Fatalf("live request failed after %v: %v", time.Since(start), err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	fmt.Printf("live handshake + request OK in %v: status=%d proto=%s\n", time.Since(start), resp.StatusCode, resp.Proto)
 	if resp.Proto != "HTTP/1.1" {
 		t.Fatalf("expected HTTP/1.1 (codex offers no ALPN), got %s", resp.Proto)
@@ -50,6 +50,6 @@ func TestCodexProfileLiveHandshake(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	fmt.Printf("second dial OK: remote=%s\n", conn.RemoteAddr())
 }

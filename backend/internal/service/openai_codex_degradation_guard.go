@@ -144,17 +144,17 @@ func newCodexDegradationGuardFailoverError(account *Account, sentModel, response
 	body := fmt.Sprintf(`{"error":{"type":"upstream_model_degraded","message":"requested %s but upstream assigned %s","requested_model":%q,"assigned_model":%q}}`,
 		sentModel, responseModel, sentModel, responseModel)
 	return &UpstreamFailoverError{
-		StatusCode:             http.StatusServiceUnavailable,
-		ResponseBody:           []byte(body),
-		RetryableOnSameAccount: false,
-		RequestScopedTransient: true,
+		StatusCode:               http.StatusServiceUnavailable,
+		ResponseBody:             []byte(body),
+		RetryableOnSameAccount:   false,
+		RequestScopedTransient:   true,
 		SafeToFailoverAfterWrite: false,
-		Stage:                  GatewayFailureStageInference,
-		Scope:                  GatewayFailureScopeAccount,
-		Reason:                 codexDegradationGuardReason,
-		NextAccountAction:      NextAccountRetry,
-		ClientStatusCode:       http.StatusServiceUnavailable,
-		ClientMessage:          codexDegradationGuardClientMessage,
+		Stage:                    GatewayFailureStageInference,
+		Scope:                    GatewayFailureScopeAccount,
+		Reason:                   codexDegradationGuardReason,
+		NextAccountAction:        NextAccountRetry,
+		ClientStatusCode:         http.StatusServiceUnavailable,
+		ClientMessage:            codexDegradationGuardClientMessage,
 	}
 }
 

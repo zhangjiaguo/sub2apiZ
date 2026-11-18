@@ -129,16 +129,16 @@ func reorderCodexResponsesBodyForWire(body []byte) []byte {
 		return nil
 	}
 	var buf bytes.Buffer
-	buf.WriteByte('{')
+	_ = buf.WriteByte('{')
 	first := true
 	emit := func(key, raw string) {
 		if !first {
-			buf.WriteByte(',')
+			_ = buf.WriteByte(',')
 		}
 		first = false
 		writeJSONString(&buf, key)
-		buf.WriteByte(':')
-		buf.WriteString(raw)
+		_ = buf.WriteByte(':')
+		_, _ = buf.WriteString(raw)
 	}
 	emitted := make(map[string]bool, len(fields))
 	for _, name := range codexWireResponsesBodyOrder {
@@ -146,9 +146,10 @@ func reorderCodexResponsesBodyForWire(body []byte) []byte {
 		if !ok {
 			continue
 		}
-		if name == "reasoning" {
+		switch name {
+		case "reasoning":
 			raw = reorderCodexReasoningForWire(raw)
-		} else if name == "input" || name == "tools" {
+		case "input", "tools":
 			raw = reorderCodexTypeFirstForWire(raw)
 		}
 		emit(name, raw)
@@ -162,7 +163,7 @@ func reorderCodexResponsesBodyForWire(body []byte) []byte {
 		}
 		emit(name, raws[name])
 	}
-	buf.WriteByte('}')
+	_ = buf.WriteByte('}')
 	return buf.Bytes()
 }
 
@@ -184,16 +185,16 @@ func reorderCodexReasoningForWire(raw string) string {
 		return raw
 	}
 	var buf bytes.Buffer
-	buf.WriteByte('{')
+	_ = buf.WriteByte('{')
 	first := true
 	emit := func(name string) {
 		if !first {
-			buf.WriteByte(',')
+			_ = buf.WriteByte(',')
 		}
 		first = false
 		writeJSONString(&buf, name)
-		buf.WriteByte(':')
-		buf.WriteString(raws[name])
+		_ = buf.WriteByte(':')
+		_, _ = buf.WriteString(raws[name])
 	}
 	emitted := make(map[string]bool, len(order))
 	for _, name := range codexWireReasoningOrder {
@@ -207,7 +208,7 @@ func reorderCodexReasoningForWire(raw string) string {
 			emit(name)
 		}
 	}
-	buf.WriteByte('}')
+	_ = buf.WriteByte('}')
 	return buf.String()
 }
 
@@ -228,17 +229,17 @@ func reorderCodexTypeFirstForWire(raw string) string {
 func writeCodexWireValue(buf *bytes.Buffer, v gjson.Result) {
 	switch {
 	case v.IsArray():
-		buf.WriteByte('[')
+		_ = buf.WriteByte('[')
 		first := true
 		v.ForEach(func(_, elem gjson.Result) bool {
 			if !first {
-				buf.WriteByte(',')
+				_ = buf.WriteByte(',')
 			}
 			first = false
 			writeCodexWireValue(buf, elem)
 			return true
 		})
-		buf.WriteByte(']')
+		_ = buf.WriteByte(']')
 	case v.IsObject():
 		// type 字段前置，其余按原序；字段值递归（嵌套数组/对象同样处理）。
 		var typeRaw string
@@ -247,20 +248,20 @@ func writeCodexWireValue(buf *bytes.Buffer, v gjson.Result) {
 			typeRaw = t.Raw
 			hasType = true
 		}
-		buf.WriteByte('{')
+		_ = buf.WriteByte('{')
 		first := true
 		emit := func(key string, value gjson.Result) {
 			if !first {
-				buf.WriteByte(',')
+				_ = buf.WriteByte(',')
 			}
 			first = false
 			writeJSONString(buf, key)
-			buf.WriteByte(':')
+			_ = buf.WriteByte(':')
 			writeCodexWireValue(buf, value)
 		}
 		if hasType {
-			buf.WriteString(`"type":`)
-			buf.WriteString(typeRaw)
+			_, _ = buf.WriteString(`"type":`)
+			_, _ = buf.WriteString(typeRaw)
 			first = false
 		}
 		v.ForEach(func(key, value gjson.Result) bool {
@@ -270,8 +271,8 @@ func writeCodexWireValue(buf *bytes.Buffer, v gjson.Result) {
 			emit(key.String(), value)
 			return true
 		})
-		buf.WriteByte('}')
+		_ = buf.WriteByte('}')
 	default:
-		buf.WriteString(v.Raw)
+		_, _ = buf.WriteString(v.Raw)
 	}
 }

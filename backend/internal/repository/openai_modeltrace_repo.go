@@ -50,7 +50,7 @@ func (r *openaiModelTraceRepository) ListSamples(ctx context.Context, model stri
 	if err != nil {
 		return nil, fmt.Errorf("list modeltrace samples: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*service.CodexModelTraceSample
 	for rows.Next() {
 		var s service.CodexModelTraceSample
@@ -139,7 +139,7 @@ func (r *openaiModelTraceRepository) ListResults(ctx context.Context, taskID str
 	if err != nil {
 		return nil, fmt.Errorf("list modeltrace results: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*service.CodexModelTraceResult
 	for rows.Next() {
 		var res service.CodexModelTraceResult

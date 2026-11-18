@@ -171,7 +171,7 @@ func TestCodexProfileMatchesCapturedClientHello(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	type result struct {
 		msg []byte
@@ -185,7 +185,7 @@ func TestCodexProfileMatchesCapturedClientHello(t *testing.T) {
 			return
 		}
 		msg := readClientHelloBytes(t, conn)
-		conn.Close()
+		_ = conn.Close()
 		resCh <- result{msg: msg}
 	}()
 
@@ -193,7 +193,7 @@ func TestCodexProfileMatchesCapturedClientHello(t *testing.T) {
 	conn, err := dialer.DialTLSContext(t.Context(), "tcp", ln.Addr().String())
 	if err == nil {
 		// 捕获端读完后立即关闭，握手会失败 —— 这是预期行为，只关心 ClientHello。
-		conn.Close()
+		_ = conn.Close()
 	}
 	res := <-resCh
 	if res.err != nil {

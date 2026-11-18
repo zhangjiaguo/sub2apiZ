@@ -2355,7 +2355,7 @@ func TestOpenAIWSHTTPBridge_IdleTimeoutClosesClientSession(t *testing.T) {
 
 func TestProxyOpenAIWSHTTPBridgeTurn_StagesCodexFingerprint(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	run := func(account *Account) *http.Request {
+	run := func(account *Account) *httpUpstreamRecorder {
 		sse := `data: {"type":"response.completed","response":{"id":"resp_fp","model":"gpt-5.5","status":"completed","usage":{"input_tokens":1,"output_tokens":1}}}` + "\n\n"
 		upstream := &httpUpstreamRecorder{resp: &http.Response{
 			StatusCode: http.StatusOK,
@@ -2376,18 +2376,20 @@ func TestProxyOpenAIWSHTTPBridgeTurn_StagesCodexFingerprint(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.NotNil(t, upstream.lastReq)
-		return upstream.lastReq
+		return upstream
 	}
 
 	full := newTestOAuthAccount(7101, map[string]any{"codex_fingerprint_mode": "full"})
 	ids := resolveCodexFingerprintIDsFromRequest(full, nil)
 	require.NotNil(t, ids)
 	first := run(full)
-	require.Equal(t, ids.sessionID, first.Header.Get("session_id"))
-	require.Equal(t, ids.installationID, first.Header.Get("x-codex-installation-id"))
-	// Every bridge request carries the same account-level session_id, keeping upstream cache routing stable
-	require.Equal(t, first.Header.Get("session_id"), run(full).Header.Get("session_id"))
+	require.Equal(t, ids.sessionID, first.lastReq.Header.Get(codexSessionIDHeader))
+	require.Empty(t, first.lastReq.Header.Get("session_id"))
+	require.Empty(t, first.lastReq.Header.Get("x-codex-installation-id"))
+	require.Equal(t, ids.installationID, gjson.GetBytes(first.lastBody, "client_metadata.x-codex-installation-id").String())
+	// 桥接请求沿用现有 Codex 线型：会话头使用连字符，安装标识只写入请求体。
+	require.Equal(t, first.lastReq.Header.Get(codexSessionIDHeader), run(full).lastReq.Header.Get(codexSessionIDHeader))
 
 	off := newTestOAuthAccount(7102, map[string]any{"codex_fingerprint_mode": "off"})
-	require.Empty(t, run(off).Header.Get("session_id"), "accounts without convergence get no session_id")
+	require.Empty(t, run(off).lastReq.Header.Get(codexSessionIDHeader), "未启用收敛的账号不附带会话标识")
 }

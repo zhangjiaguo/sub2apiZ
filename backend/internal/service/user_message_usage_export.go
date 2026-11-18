@@ -38,7 +38,7 @@ func (s *UserMessageLogService) ExportGroupUsage(ctx context.Context, groupID in
 
 func buildGroupUsageCSV(rows []*GroupUsageRanking, groupID int64, days int) ([]byte, error) {
 	var buffer bytes.Buffer
-	buffer.WriteString("\xef\xbb\xbf") // Excel 直接打开时识别 UTF-8 中文。
+	_, _ = buffer.WriteString("\xef\xbb\xbf") // Excel 直接打开时识别 UTF-8 中文。
 	writer := csv.NewWriter(&buffer)
 	writer.UseCRLF = true
 	if err := writer.Write([]string{"序号", "用户ID", "用户名", "邮箱", "请求数", "输入Token", "输出Token", "缓存读取Token", "费用（USD）", "统计分组", "统计天数"}); err != nil {

@@ -97,7 +97,7 @@ func TestResolveOpenAITicketProbeIdentity_StablePerAccount(t *testing.T) {
 // POST 响应体关闭后连接关闭。
 func TestOpenAITicketWireRoundTripper_FullWireShape(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
-	defer serverConn.Close()
+	defer func() { _ = serverConn.Close() }()
 
 	var dialCount int
 	rt := &openAITicketWireRoundTripper{
@@ -229,7 +229,7 @@ func TestWriteOpenAITicketWireRequest_LowercaseOrderedHeaders(t *testing.T) {
 // ctx 取消应中断阻塞中的请求（手工客户端的取消管道）。
 func TestOpenAITicketWireRoundTripper_ContextCancelAborts(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
-	defer serverConn.Close()
+	defer func() { _ = serverConn.Close() }()
 	rt := &openAITicketWireRoundTripper{
 		dial: func(context.Context, string, string) (net.Conn, error) {
 			return clientConn, nil

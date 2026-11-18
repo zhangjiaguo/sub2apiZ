@@ -38,10 +38,10 @@ func newOpenAIRPMTestService(t *testing.T, counts map[int64]int) (*OpenAIGateway
 
 func openAIRPMLimitedOAuthAccount() *Account {
 	return &Account{
-		ID:         243,
-		Platform:   PlatformOpenAI,
-		Type:       AccountTypeOAuth,
-		Extra:      map[string]any{"base_rpm": 40, "rpm_strategy": "tiered"},
+		ID:       243,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Extra:    map[string]any{"base_rpm": 40, "rpm_strategy": "tiered"},
 	}
 }
 

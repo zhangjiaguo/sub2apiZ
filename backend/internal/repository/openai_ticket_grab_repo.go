@@ -96,7 +96,7 @@ func (r *openaiTicketGrabRepository) ListGrabLogs(ctx context.Context, accountID
 	if err != nil {
 		return nil, fmt.Errorf("list grab logs: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var logs []*service.OpenAITicketGrabLog
 	for rows.Next() {
 		var l service.OpenAITicketGrabLog
@@ -135,7 +135,7 @@ func (r *openaiTicketGrabRepository) AccountGrabStats(ctx context.Context, accou
 	if err != nil {
 		return nil, fmt.Errorf("account grab stats: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	stats := make(map[int64]*service.OpenAITicketGrabStats, len(accountIDs))
 	for rows.Next() {
 		var (

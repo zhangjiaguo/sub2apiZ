@@ -696,10 +696,17 @@ func TestCodexModelTraceStatusAndSamples(t *testing.T) {
 	if bank == nil {
 		t.Fatal("bank missing in status")
 	}
-	if got := len(bank["models"].([]map[string]any)); got != 1 {
+	models, ok := bank["models"].([]map[string]any)
+	if !ok {
+		t.Fatal("模型目录结构无效")
+	}
+	if got := len(models); got != 1 {
 		t.Fatalf("bank models=%d", got)
 	}
-	counts := status["sample_counts"].(map[string]int)
+	counts, ok := status["sample_counts"].(map[string]int)
+	if !ok {
+		t.Fatal("样本计数结构无效")
+	}
 	if counts["m1"] != 1 {
 		t.Fatalf("sample counts=%v", counts)
 	}

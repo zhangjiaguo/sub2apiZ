@@ -21,7 +21,7 @@ func userMessageLogTestRows() *sqlmock.Rows {
 func TestUserMessageLogList_ResolvesCurrentUsernameWithinAllowedGroups(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	mock.ExpectQuery(`SELECT count\(\*\) FROM user_message_logs WHERE 1=1 AND group_id IN \(\$1,\$2\)`).
 		WithArgs(int64(20), int64(21)).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
@@ -39,7 +39,7 @@ func TestUserMessageLogList_ResolvesCurrentUsernameWithinAllowedGroups(t *testin
 func TestUserMessageLogGet_ResolvesCurrentUsername(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	mock.ExpectQuery(`(?s)SELECT .*COALESCE\(u.username, m.username\).* FROM user_message_logs m LEFT JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL WHERE m.id=\$1`).
 		WithArgs(int64(12)).WillReturnRows(userMessageLogTestRows())

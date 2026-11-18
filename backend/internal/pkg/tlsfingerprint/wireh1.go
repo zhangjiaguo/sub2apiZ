@@ -398,8 +398,8 @@ func writeWireH1Request(w io.Writer, req *http.Request, body []byte, order []str
 	if host == "" {
 		host = req.URL.Host
 	}
-	b.WriteString("host: ")
-	b.WriteString(host)
+	_, _ = b.WriteString("host: ")
+	_, _ = b.WriteString(host)
 
 	written := make(map[string]bool, len(req.Header)+len(order)+2)
 	written["host"] = true
@@ -413,15 +413,15 @@ func writeWireH1Request(w io.Writer, req *http.Request, body []byte, order []str
 			continue
 		}
 		for _, v := range values {
-			b.WriteString("\r\n")
-			b.WriteString(name)
-			b.WriteString(": ")
-			b.WriteString(v)
+			_, _ = b.WriteString("\r\n")
+			_, _ = b.WriteString(name)
+			_, _ = b.WriteString(": ")
+			_, _ = b.WriteString(v)
 		}
 		written[name] = true
 	}
 	if req.Close {
-		b.WriteString("\r\nconnection: close")
+		_, _ = b.WriteString("\r\nconnection: close")
 		written["connection"] = true
 	}
 	// 顺序表外的头按字母序补尾；逐跳头与由本写出器管理的头不透传。
@@ -438,19 +438,19 @@ func writeWireH1Request(w io.Writer, req *http.Request, body []byte, order []str
 	sort.Strings(extra)
 	for _, name := range extra {
 		for _, v := range extraValues[name] {
-			b.WriteString("\r\n")
-			b.WriteString(name)
-			b.WriteString(": ")
-			b.WriteString(v)
+			_, _ = b.WriteString("\r\n")
+			_, _ = b.WriteString(name)
+			_, _ = b.WriteString(": ")
+			_, _ = b.WriteString(v)
 		}
 	}
 	if body != nil {
-		b.WriteString("\r\ncontent-length: ")
-		b.WriteString(strconv.Itoa(len(body)))
+		_, _ = b.WriteString("\r\ncontent-length: ")
+		_, _ = b.WriteString(strconv.Itoa(len(body)))
 	}
-	b.WriteString("\r\n\r\n")
+	_, _ = b.WriteString("\r\n\r\n")
 	if body != nil {
-		b.Write(body)
+		_, _ = b.Write(body)
 	}
 	_, err := w.Write(b.Bytes())
 	return err

@@ -471,8 +471,8 @@ func (s *CodexModelTraceService) executeBankBuild(ctx context.Context, taskID st
 					stats[u.model] = st
 				}
 				threshold := modeltrace.ValidAnswerThreshold(u.challenge.ExpectedCount)
-				switch {
-				case out.reason == "":
+				switch out.reason {
+				case "":
 					if len(out.numbers) >= threshold {
 						st.stored++
 						st.latSum += out.latencyMS
@@ -665,8 +665,8 @@ func (s *CodexModelTraceService) detectPair(ctx context.Context, taskID string, 
 	var reasons []string
 	for i := 0; i < settings.DetectRepeats; i++ {
 		out := s.probe(ctx, account, model, challenges[i], settings)
-		switch {
-		case out.reason == "":
+		switch out.reason {
+		case "":
 			answers = append(answers, modeltrace.Answer{
 				ExpectedCount: challenges[i].ExpectedCount,
 				Numbers:       out.numbers,
@@ -882,27 +882,27 @@ func resolveCodexModelTraceIdentity(account *Account) *openAITicketProbeIdentity
 // ResponsesApiRequest 字段序），仅 input 文本换成挑战提示语。
 func buildCodexModelTraceRequestBody(model, prompt string, ids *openAITicketProbeIdentity) []byte {
 	var b bytes.Buffer
-	b.WriteString(`{"model":`)
+	_, _ = b.WriteString(`{"model":`)
 	writeJSONString(&b, model)
-	b.WriteString(`,"instructions":`)
+	_, _ = b.WriteString(`,"instructions":`)
 	writeJSONString(&b, openAITicketProbeInstructions)
-	b.WriteString(`,"input":[{"type":"message","role":"user","content":`)
+	_, _ = b.WriteString(`,"input":[{"type":"message","role":"user","content":`)
 	writeJSONString(&b, prompt)
-	b.WriteString(`}],"tool_choice":"auto","parallel_tool_calls":false,` +
+	_, _ = b.WriteString(`}],"tool_choice":"auto","parallel_tool_calls":false,` +
 		`"reasoning":{"effort":"low","summary":"auto"},"store":false,"stream":true,` +
 		`"include":["reasoning.encrypted_content"],"prompt_cache_key":`)
 	writeJSONString(&b, ids.sessionID)
-	b.WriteString(`,"client_metadata":{"x-codex-installation-id":`)
+	_, _ = b.WriteString(`,"client_metadata":{"x-codex-installation-id":`)
 	writeJSONString(&b, ids.installationID)
-	b.WriteString(`,"session_id":`)
+	_, _ = b.WriteString(`,"session_id":`)
 	writeJSONString(&b, ids.sessionID)
-	b.WriteString(`,"thread_id":`)
+	_, _ = b.WriteString(`,"thread_id":`)
 	writeJSONString(&b, ids.threadID)
-	b.WriteString(`,"x-codex-window-id":`)
+	_, _ = b.WriteString(`,"x-codex-window-id":`)
 	writeJSONString(&b, ids.windowID)
-	b.WriteString(`,"x-codex-turn-metadata":`)
+	_, _ = b.WriteString(`,"x-codex-turn-metadata":`)
 	writeJSONString(&b, buildOpenAITicketTurnMetadataJSON(ids))
-	b.WriteString(`}}`)
+	_, _ = b.WriteString(`}}`)
 	return b.Bytes()
 }
 
@@ -932,7 +932,7 @@ func parseModelTraceSSE(data []byte) modelTraceStreamResult {
 		evt := gjson.Parse(payload)
 		switch evt.Get("type").String() {
 		case "response.output_text.delta":
-			text.WriteString(evt.Get("delta").String())
+			_, _ = text.WriteString(evt.Get("delta").String())
 		case "response.completed":
 			result.Completed = true
 			if text.Len() == 0 {
@@ -940,7 +940,7 @@ func parseModelTraceSSE(data []byte) modelTraceStreamResult {
 				for _, item := range evt.Get("response.output").Array() {
 					for _, c := range item.Get("content").Array() {
 						if c.Get("type").String() == "output_text" {
-							text.WriteString(c.Get("text").String())
+							_, _ = text.WriteString(c.Get("text").String())
 						}
 					}
 				}
