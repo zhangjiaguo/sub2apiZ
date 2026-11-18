@@ -450,17 +450,19 @@ func TestDeepseekOverrideFileTokenPrices(t *testing.T) {
 	official := prices{1.5e-7, 6e-7, 3e-9}
 	officialPeak := prices{3e-7, 1.2e-6, 6e-9}
 	custom := prices{2e-6, 3e-6, 4e-7}
+	// 线上完整运营者价卡沿用低峰基础价语义，高峰仍乘原有倍率。
+	customPeak := prices{4e-6, 6e-6, 8e-7}
 	fullPatch := `{"input_cost_per_token":0.000002,"output_cost_per_token":0.000003,"cache_read_input_token_cost":0.0000004}`
 	cases := []struct {
 		name, model, layer, patch string
 		offPeak, peak             prices
 	}{
-		{"flash full", "deepseek-flash", "catalog", fullPatch, custom, custom},
-		{"pro full", "deepseek-v4-pro", "catalog", fullPatch, custom, custom},
-		{"versioned pro full", "deepseek-v4-pro-0813", "catalog", fullPatch, custom, custom},
-		{"fallback full", "deepseek-flash", "fallback", fullPatch, custom, custom},
-		{"custom model override only", "deepseek-custom", "override", fullPatch, custom, custom},
-		{"override only", "deepseek-flash", "override", fullPatch, custom, custom},
+		{"flash full", "deepseek-flash", "catalog", fullPatch, custom, customPeak},
+		{"pro full", "deepseek-v4-pro", "catalog", fullPatch, custom, customPeak},
+		{"versioned pro full", "deepseek-v4-pro-0813", "catalog", fullPatch, custom, customPeak},
+		{"fallback full", "deepseek-flash", "fallback", fullPatch, custom, customPeak},
+		{"custom model override only", "deepseek-custom", "override", fullPatch, custom, customPeak},
+		{"override only", "deepseek-flash", "override", fullPatch, custom, customPeak},
 		{"input only", "deepseek-flash", "catalog", `{"input_cost_per_token":0.000002}`, prices{2e-6, 6e-7, 3e-9}, prices{2e-6, 1.2e-6, 6e-9}},
 		{"zero input", "deepseek-flash", "catalog", `{"input_cost_per_token":0}`, prices{0, 6e-7, 3e-9}, prices{0, 1.2e-6, 6e-9}},
 		{"zero output", "deepseek-flash", "catalog", `{"output_cost_per_token":0}`, prices{1.5e-7, 0, 3e-9}, prices{3e-7, 0, 6e-9}},
@@ -546,7 +548,7 @@ func TestDeepseekOverrideFileReloadRestoresOfficialPolicy(t *testing.T) {
 		require.InDelta(t, wantOutput, cost.OutputCost, 1e-12)
 		require.InDelta(t, wantCacheRead, cost.CacheReadCost, 1e-12)
 	}
-	check(0.002, 0.0015, 0)
+	check(0.004, 0.003, 0)
 	require.NoError(t, os.WriteFile(svc.cfg.Pricing.OverrideFile, []byte(`{"deepseek-flash":{"output_cost_per_token":0}}`), 0644))
 	svc.reloadIfCustomFilesChanged()
 	check(0.0003, 0, 0.000012)
