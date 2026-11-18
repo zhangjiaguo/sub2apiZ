@@ -481,7 +481,7 @@ func (b *usageExcelBuilder) flush(name string) error {
 		for col := range s.rows[row] {
 			maxCol = max(maxCol, col)
 		}
-		values := make([]interface{}, maxCol)
+		values := make([]any, maxCol)
 		for col, cell := range s.rows[row] {
 			values[col-1] = cell
 		}
