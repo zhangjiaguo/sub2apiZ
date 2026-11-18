@@ -46,3 +46,43 @@ func TestOfficialOpenAIWriteTTL(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, 250, usage.PricingDetails.CacheWrite12hTokens)
 }
+
+// 原生十二小时价和旧规则文件同时存在时，同一批写入 Token 只能按寿命计价一次。
+func TestOfficialNativeWriteTTLDoesNotDoubleCharge(t *testing.T) {
+	rules, err := pricingrules.Parse([]byte(`{"version":1,"models":{"gpt-6.1-sol":{"cache_write_12h_multiplier":2}}}`))
+	require.NoError(t, err)
+	usage, ok := openAIUsageFromGJSON(gjson.Parse(`{"input_tokens":1010,"output_tokens":0,"input_tokens_details":{"cache_write_tokens":1000,"cache_write_tokens_details":{"ttl_30m_tokens":750,"ttl_12h_tokens":250}}}`))
+	require.True(t, ok)
+	longPrice := 4e-6
+	for _, tc := range []struct {
+		name    string
+		price   *float64
+		channel bool
+		want    float64
+	}{
+		{name: "legacy_channel_rule", channel: true, want: 0.003765},
+		{name: "native_price_and_legacy_rule", price: &longPrice, want: 0.003765},
+		{name: "default_native_price_and_legacy_rule", want: 0.0032025},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bs := &BillingService{tokenRules: rules, fallbackPrices: map[string]*ModelPricing{"gpt-6.1-sol": {
+				InputPricePerToken: 1e-6, CacheCreationPricePerToken: 2e-6,
+				CacheCreationPriceExplicit: true, CacheCreation12hPricePerToken: tc.price,
+			}}}
+			input := CostInput{Model: "gpt-6.1-sol", Tokens: UsageTokens{
+				InputTokens:            usage.InputTokens - usage.CacheCreationInputTokens,
+				CacheCreationTokens:    usage.CacheCreationInputTokens,
+				CacheCreation30mTokens: usage.CacheCreation30mInputTokens,
+				CacheCreation12hTokens: usage.CacheCreation12hInputTokens,
+				PricingDetails:         usage.PricingDetails,
+			}, RateMultiplier: 1.5}
+			if tc.channel {
+				input.Resolver = NewModelPricingResolver(nil, bs)
+				input.Resolved = &ResolvedPricing{Mode: BillingModeToken, Source: PricingSourceChannel, BasePricing: bs.fallbackPrices[input.Model]}
+			}
+			cost, err := bs.CalculateCostUnified(input)
+			require.NoError(t, err)
+			require.InDelta(t, tc.want, cost.ActualCost, 1e-12)
+		})
+	}
+}

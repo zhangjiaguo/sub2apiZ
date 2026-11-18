@@ -9,10 +9,10 @@ describe('用户用量完整报表下载', () => {
 
   it('不发送当前分页，读取 UTF-8 中文文件名', async () => {
     const blob = new Blob(['报表'])
-    const filename = '用户用量_全部分组_近7天.csv'
+    const filename = '用户用量_分组20_近7天.csv'
     get.mockResolvedValue({ data: blob, headers: { 'content-disposition': `attachment; filename*=utf-8''${encodeURIComponent(filename)}` } })
-    expect(await exportGroupUsageReport(null, 7, false)).toEqual({ blob, filename })
-    expect(get).toHaveBeenCalledWith('/admin/user-message-logs/usage-summary/export', { params: { days: 7 }, responseType: 'blob' })
+    expect(await exportGroupUsageReport(20, 7, false)).toEqual({ blob, filename })
+    expect(get).toHaveBeenCalledWith('/admin/user-message-logs/usage-summary/export', { params: { group_id: 20, days: 7, format: 'csv' }, responseType: 'blob' })
   })
 
   it('查看者请求保持分组范围，无效文件名头安全回退', async () => {
@@ -20,6 +20,6 @@ describe('用户用量完整报表下载', () => {
     get.mockResolvedValue({ data: blob, headers: { 'content-disposition': "attachment; filename*=utf-8''%INVALID" } })
     const report = await exportGroupUsageReport(20, 30, true)
     expect(report.filename).toBe('用户用量_分组20_近30天.csv')
-    expect(get).toHaveBeenCalledWith('/user-message-logs/usage-summary/export', { params: { group_id: 20, days: 30 }, responseType: 'blob' })
+    expect(get).toHaveBeenCalledWith('/user-message-logs/usage-summary/export', { params: { group_id: 20, days: 30, format: 'csv' }, responseType: 'blob' })
   })
 })

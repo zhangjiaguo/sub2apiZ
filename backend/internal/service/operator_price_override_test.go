@@ -71,7 +71,7 @@ func TestOperatorDeepseekRatesSurviveDefaultPolicy(t *testing.T) {
 	}
 }
 
-func TestIncompleteOperatorRatesKeepBuiltinDeepseekFallback(t *testing.T) {
+func TestPartialOperatorRatesPreserveExplicitFieldAndBuiltinFallbacks(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Pricing.OverrideFile = filepath.Join(t.TempDir(), "partial.json")
 	require.NoError(t, os.WriteFile(cfg.Pricing.OverrideFile, []byte(`{"deepseek-v4-flash":{"input_cost_per_token":0.00001}}`), 0600))
@@ -81,5 +81,7 @@ func TestIncompleteOperatorRatesKeepBuiltinDeepseekFallback(t *testing.T) {
 	ps.pricingData = data
 	got, err := NewBillingService(cfg, ps).GetModelPricing("deepseek-v4-flash")
 	require.NoError(t, err)
-	require.Equal(t, deepseekFlashOffPeakInputPrice, got.InputPricePerToken)
+	require.Equal(t, 1e-5, got.InputPricePerToken)
+	require.Equal(t, deepseekFlashOffPeakOutputPrice, got.OutputPricePerToken)
+	require.Equal(t, deepseekFlashOffPeakCacheRead, got.CacheReadPricePerToken)
 }
