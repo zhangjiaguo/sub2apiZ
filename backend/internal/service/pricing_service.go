@@ -227,6 +227,8 @@ var (
 // LiteLLMModelPricing LiteLLM价格数据结构
 // 只保留我们需要的字段，使用指针来处理可能缺失的值
 type LiteLLMModelPricing struct {
+	// OperatorTokenRates 仅由本地完整价格覆盖文件授予，不接受远端目录的同名标记。
+	OperatorTokenRates                  bool    `json:"-"`
 	CacheCreationInputTokenCostExplicit bool    `json:"-"`
 	InputCostPerToken                   float64 `json:"input_cost_per_token"`
 	InputCostPerTokenPriority           float64 `json:"input_cost_per_token_priority"`
@@ -1068,7 +1070,30 @@ func (s *PricingService) buildPricingData(body []byte) (map[string]*LiteLLMModel
 	}
 	data = s.mergeFallbackPricingData(data)
 	data = s.mergeOverrideOnlyModels(data)
+	s.markCompleteOperatorTokenRates(data)
 	return data, fingerprint, nil
+}
+
+// markCompleteOperatorTokenRates 标识运营者明确提供的三项完整基础价。
+// 只检查本地覆盖文件；缺项或 null 不会关闭旧目录的安全回退。
+// 标记与已加载价卡共同发布，热路径不再读取文件。
+func (s *PricingService) markCompleteOperatorTokenRates(data map[string]*LiteLLMModelPricing) {
+	for name, raw := range s.loadPricingOverrideEntries() {
+		var rates struct {
+			Input  *float64 `json:"input_cost_per_token"`
+			Output *float64 `json:"output_cost_per_token"`
+			Read   *float64 `json:"cache_read_input_token_cost"`
+		}
+		if json.Unmarshal(raw, &rates) != nil || rates.Input == nil || rates.Output == nil || rates.Read == nil {
+			continue
+		}
+		if *rates.Input < 0 || *rates.Output < 0 || *rates.Read < 0 {
+			continue
+		}
+		if pricing := data[strings.ToLower(strings.TrimSpace(name))]; pricing != nil {
+			pricing.OperatorTokenRates = true
+		}
+	}
 }
 
 // loadPricingData 从本地文件加载价格数据
