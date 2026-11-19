@@ -69,13 +69,7 @@ func TestOfficialNativeWriteTTLDoesNotDoubleCharge(t *testing.T) {
 				InputPricePerToken: 1e-6, CacheCreationPricePerToken: 2e-6,
 				CacheCreationPriceExplicit: true, CacheCreation12hPricePerToken: tc.price,
 			}}}
-			input := CostInput{Model: "gpt-6.1-sol", Tokens: UsageTokens{
-				InputTokens:            usage.InputTokens - usage.CacheCreationInputTokens,
-				CacheCreationTokens:    usage.CacheCreationInputTokens,
-				CacheCreation30mTokens: usage.CacheCreation30mInputTokens,
-				CacheCreation12hTokens: usage.CacheCreation12hInputTokens,
-				PricingDetails:         usage.PricingDetails,
-			}, RateMultiplier: 1.5}
+			input := CostInput{Model: "gpt-6.1-sol", Tokens: usage.billingUsageTokens(), RateMultiplier: 1.5}
 			if tc.channel {
 				input.Resolver = NewModelPricingResolver(nil, bs)
 				input.Resolved = &ResolvedPricing{Mode: BillingModeToken, Source: PricingSourceChannel, BasePricing: bs.fallbackPrices[input.Model]}

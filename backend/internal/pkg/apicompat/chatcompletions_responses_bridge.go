@@ -1537,15 +1537,17 @@ func ChatUsageToResponsesUsage(usage *ChatUsage) *ResponsesUsage {
 		return nil
 	}
 	out := &ResponsesUsage{
-		InputTokens:  usage.PromptTokens,
-		OutputTokens: usage.CompletionTokens,
-		TotalTokens:  usage.TotalTokens,
+		InputTokens:              usage.PromptTokens,
+		OutputTokens:             usage.CompletionTokens,
+		TotalTokens:              usage.TotalTokens,
+		CacheCreationInputTokens: usage.PromptTokensDetails.cacheCreationInputTokens(),
 	}
 	if out.TotalTokens == 0 {
 		out.TotalTokens = out.InputTokens + out.OutputTokens
 	}
 	if usage.PromptTokensDetails != nil && (usage.PromptTokensDetails.CachedTokens > 0 ||
-		usage.PromptTokensDetails.CacheCreationTokens > 0 || usage.PromptTokensDetails.CacheWriteTokens > 0 || usage.PromptTokensDetails.CacheCreationInputTokens > 0) {
+		usage.PromptTokensDetails.CacheCreationTokens > 0 || usage.PromptTokensDetails.CacheWriteTokens > 0 ||
+		usage.PromptTokensDetails.CacheCreationInputTokens > 0 || usage.PromptTokensDetails.CacheWriteTokensDetails != nil) {
 		out.InputTokensDetails = &ResponsesInputTokensDetails{
 			CachedTokens:             usage.PromptTokensDetails.CachedTokens,
 			CacheCreationTokens:      usage.PromptTokensDetails.CacheCreationTokens,
@@ -1557,13 +1559,10 @@ func ChatUsageToResponsesUsage(usage *ChatUsage) *ResponsesUsage {
 			copy := *out.InputTokensDetails.CacheWriteTokensDetails
 			out.InputTokensDetails.CacheWriteTokensDetails = &copy
 		}
-		if usage.PromptTokensDetails.CacheWriteTokens > 0 {
-			out.CacheCreationInputTokens = usage.PromptTokensDetails.CacheWriteTokens
-		} else {
-			out.CacheCreationInputTokens = usage.PromptTokensDetails.CacheCreationTokens
-			if out.CacheCreationInputTokens == 0 {
-				out.CacheCreationInputTokens = usage.PromptTokensDetails.CacheCreationInputTokens
-			}
+		if out.CacheCreationInputTokens == 0 {
+			out.InputTokensDetails.CacheCreationInputTokens = 0
+			out.InputTokensDetails.CacheCreationTokens = 0
+			out.InputTokensDetails.CacheWriteTokens = 0
 		}
 	}
 	return out
