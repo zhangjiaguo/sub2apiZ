@@ -251,6 +251,8 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 			return nil, codexResult.Error
 		}
 		setCodexToolNameReverse(c, codexResult.ToolNameReverse)
+		// 保留 Messages 转换生成的加密推理和搜索来源请求字段。
+		reqBody["include"] = responsesReq.Include
 		forcedTemplateText := ""
 		if s.cfg != nil {
 			forcedTemplateText = s.cfg.Gateway.ForcedCodexInstructionsTemplate
